@@ -32,10 +32,7 @@ interface IDataHub {
 
     function addAssets(address user, address token, uint256 amount) external;
 
-    function fetchTotalAssetSupply(
-        address token
-    ) external view returns (uint256);
-
+ 
     function tradeFee(
         address token,
         uint256 feeType

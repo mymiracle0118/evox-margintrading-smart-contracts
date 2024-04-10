@@ -28,6 +28,7 @@ async function main(){
 //0xBb20dFac2c4cBdd0729787ac5869613554aE1361
 
 //const ex = "0x4E1Dc2D90E81Ad889054Ef2668B5Ab5fDDdf23bf"
+/*
 const ex = "0xBb20dFac2c4cBdd0729787ac5869613554aE1361"
 const DH = "0x9dEB2F4A64b7E56e08fB9d065AA515643Ec04B1b"
 const DV = "0x259ca2d085Bdc9Ab4C19D834781f2De7a44C388a"
@@ -35,7 +36,14 @@ const oracle = "0xb06ff8274F31ba7bFCDC734b810B55C48dE87C18"
 const util = "0x453B0471Ccc75382697ED645ee8Ede742DD09D50"
 const interest = "0x85c8b7e19045a528c89831bD93a47375931738f2"
 const liq = "0xFe1cC78055F628eB067FE696fB2a8dA57C3C6001"
-
+*/
+const ex = "0x5C1391c2b6eCCD3bc20F3103aE1FaF9Ecf083E8F"
+const DH = "0x4D4fdbC6090F85c504A5f9435ba5cb297049c506"
+const DV = "0x12d892F536854eb23edc219F7B0Fdd2D84C7D9C1"
+const oracle = "0x0d2FD2AC9d9314B3C35473e1ba0DFC04c6eCb5EF"
+const util = "0xfe173D97B0947746454eab61b7fBc09E5E61E560"
+const interest = "0x63b2D884f53eB59353B5aF9c98E3E4fcC1C7F373"
+const liq = "0x52cc3D11231760F42ddEE635EC86F9906a7dD0f2"
         const deployer = await hre.ethers.provider.getSigner(0); // change 0 / 1 for different wallets 
 
         console.log("INIT with the account:", deployer.address);

@@ -3,7 +3,7 @@ const InterestAbi = require("../artifacts/contracts/interestData.sol/interestDat
 
 async function main() {
 
-    const interest = "0x85c8b7e19045a528c89831bD93a47375931738f2"
+    const interest = "0x63b2D884f53eB59353B5aF9c98E3E4fcC1C7F373"
 
     const USDT = "0xaBAD60e4e01547E2975a96426399a5a0578223Cb"
 

@@ -11,7 +11,7 @@ async function main() {
   // Deploy REXE library
   const Exchange = await hre.ethers.getContractFactory("EVO_EXCHANGE", {
     libraries: {
-      EVO_LIBRARY: "0x57E52102561799B60Ebb5c8Cea8bef040C19cb5a",
+      EVO_LIBRARY: "0x77F0FF3217305d758F52A392666bdCFdaa7A78aF",
     },
   });
 

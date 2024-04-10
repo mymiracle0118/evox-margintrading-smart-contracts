@@ -368,6 +368,14 @@ async function main() {
         // Calculate hourly rate
         let hourly_rate = Number(Rate.toString()) / 8736;
 
+        const usersearningindex = await DataHub.viewUsersEarningRateIndex(signers[1].address, await USDT.getAddress())
+
+
+        let depositinterest = await _Interest.calculateAverageCumulativeDepositInterest(usersearningindex,interestIndex, await USDT.getaddress())
+
+
+        console.log(depositinterest, "deposit interest")
+
         // Create a data object for the current iteration
         const newData = {
             "index": Number(interestIndex.toString()),

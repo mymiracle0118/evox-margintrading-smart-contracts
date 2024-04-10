@@ -355,7 +355,7 @@ contract EVO_EXCHANGE is Ownable {
                 // remove their pending balances
                 unFreezeBalance(users[i], out_token, amounts_out_token[i]);
                 // give users their deposit interest accrued
-                debitAssetInterest(users[i], in_token);
+                //debitAssetInterest(users[i], in_token);
                 // add remaining amount not subtracted from liabilities to assets
                 Datahub.addAssets(users[i], in_token, input_amount);
             }
@@ -416,21 +416,51 @@ contract EVO_EXCHANGE is Ownable {
             uint256 DaoInterestCharge
         ) = EVO_LIBRARY.calculateCompoundedAssets(
                 interestContract.fetchCurrentRateIndex(token),
-                cumulativeinterest,
+                (cumulativeinterest / 10 ** 18),
                 assets,
                 Datahub.viewUsersEarningRateIndex(user, token)
             );
 
         Datahub.alterUsersEarningRateIndex(user, token);
 
-        Datahub.addAssets(user, token, interestCharge);
-        Datahub.addAssets(fetchDaoWallet(), token, DaoInterestCharge);
+        Datahub.addAssets(user, token, (interestCharge / 10 ** 18));
+        Datahub.addAssets(
+            fetchDaoWallet(),
+            token,
+            (DaoInterestCharge / 10 ** 18)
+        );
 
         Datahub.addAssets(
             fetchOrderBookProvider(),
             token,
-            OrderBookProviderCharge
+            (OrderBookProviderCharge / 10 ** 18)
         );
+    }
+
+    /// @notice This fetches a users accrued deposit interest
+    /// @dev when a user deposits to the exchange they earn interest on their deposit paid for by margined users who have liabilities
+    /// @param user the user we are wishing to see the deposit interest for
+    /// @param token the token the user is earning deposit interest on
+    /// @return interestCharge the amount of deposit interest the user has accrued
+    function fetchUsersDepositInterest(
+        address user,
+        address token
+    ) public view returns (uint256) {
+        (uint256 assets, , , , ) = Datahub.ReadUserData(user, token);
+        uint256 cumulativeinterest = interestContract
+            .calculateAverageCumulativeDepositInterest(
+                Datahub.viewUsersEarningRateIndex(user, token),
+                interestContract.fetchCurrentRateIndex(token),
+                token
+            );
+
+        (uint256 interestCharge, , ) = EVO_LIBRARY.calculateCompoundedAssets(
+            interestContract.fetchCurrentRateIndex(token),
+            (cumulativeinterest / 10 ** 18),
+            assets,
+            Datahub.viewUsersEarningRateIndex(user, token)
+        );
+        return interestCharge;
     }
 
     /// @notice This will charge interest to a user if they are accuring new liabilities
@@ -438,30 +468,22 @@ contract EVO_EXCHANGE is Ownable {
     /// @param token the token being targetted
     /// @param liabilitiesAccrued the new liabilities being issued
     /// @param minus determines if we are adding to the liability pool or subtracting
+
     function chargeinterest(
         address user,
         address token,
         uint256 liabilitiesAccrued,
         bool minus
     ) private {
-        if (minus == false) {
-            (, uint256 liabilities, , , ) = Datahub.ReadUserData(user, token);
+        //Step 1) charge mass interest on outstanding liabilities
+        interestContract.chargeMassinterest(token);
 
-            uint256 interestCharge = EVO_LIBRARY.calculateCompoundedLiabilities(
-                interestContract.fetchCurrentRateIndex(token),
-                interestContract.calculateAverageCumulativeInterest(
-                    Datahub.viewUsersInterestRateIndex(user, token),
-                    interestContract.fetchCurrentRateIndex(token),
-                    token
-                ),
-                Datahub.returnAssetLogs(token),
-                interestContract.fetchRateInfo(
-                    token,
-                    interestContract.fetchCurrentRateIndex(token)
-                ),
-                liabilitiesAccrued,
-                liabilities,
-                Datahub.viewUsersInterestRateIndex(user, token)
+        if (minus == false) {
+            //Step 2) calculate the trade's liabilities + interest
+            uint256 interestCharge = interestContract.returnInterestCharge(
+                user,
+                token,
+                liabilitiesAccrued
             );
 
             Datahub.addLiabilities(
@@ -470,24 +492,117 @@ contract EVO_EXCHANGE is Ownable {
                 liabilitiesAccrued + interestCharge
             );
 
-            Datahub.alterUsersInterestRateIndex(user, token);
-
             Datahub.setTotalBorrowedAmount(
                 token,
                 (liabilitiesAccrued + interestCharge),
                 true
             );
+
+            Datahub.alterUsersInterestRateIndex(user, token);
         } else {
+            uint256 interestCharge = interestContract.returnInterestCharge(
+                user,
+                token,
+                0
+            );
+
+            Datahub.addLiabilities(user, token, interestCharge);
+
             Datahub.removeLiabilities(user, token, liabilitiesAccrued);
-            Datahub.setTotalBorrowedAmount(token, liabilitiesAccrued, true);
+
+            Datahub.setTotalBorrowedAmount(
+                token,
+                (liabilitiesAccrued - interestCharge),
+                false
+            );
+
+            Datahub.alterUsersInterestRateIndex(user, token);
         }
-        interestContract.chargeMassinterest(token);
- 
     }
+
 
     receive() external payable {}
 }
-       /*
+/*
+    function returnInterestCharge(
+        address user,
+        address token,
+        uint256 liabilitiesAccrued
+    ) private view returns (uint256) {
+        (, uint256 liabilities, , , ) = Datahub.ReadUserData(user, token);
+        uint256 interestCharge = EVO_LIBRARY.calculateCompoundedLiabilities(
+            interestContract.fetchCurrentRateIndex(token),
+            interestContract.calculateAverageCumulativeInterest(
+                Datahub.viewUsersInterestRateIndex(user, token),
+                interestContract.fetchCurrentRateIndex(token),
+                token
+            ),
+            Datahub.returnAssetLogs(token),
+            interestContract.fetchRateInfo(
+                token,
+                interestContract.fetchCurrentRateIndex(token)
+            ),
+            liabilitiesAccrued,
+            liabilities,
+            Datahub.viewUsersInterestRateIndex(user, token)
+        );
+
+        return interestCharge;
+    }
+            if (
+                interestContract
+                    .fetchRateInfo(
+                        token,
+                        interestContract.fetchCurrentRateIndex(token)
+                    )
+                    .lastUpdatedTime +
+                    1 hours <
+                block.timestamp
+            ) {
+                Datahub.setTotalBorrowedAmount(token, liabilitiesAccrued, true);
+
+                interestContract.updateInterestIndex(
+                    token,
+                    interestContract.fetchCurrentRateIndex(token),
+                    EVO_LIBRARY.calculateInterestRate(
+                        liabilitiesAccrued,
+                        Datahub.returnAssetLogs(token),
+                        interestContract.fetchRateInfo(
+                            token,
+                            interestContract.fetchCurrentRateIndex(token)
+                        )
+                    )
+                );
+                InterestUpdated = true;
+            }
+*/
+/*
+            if (
+                interestContract
+                    .fetchRateInfo(
+                        token,
+                        interestContract.fetchCurrentRateIndex(token)
+                    )
+                    .lastUpdatedTime +
+                    1 hours <
+                block.timestamp
+            ) {
+                interestContract.updateInterestIndex(
+                    token,
+                    interestContract.fetchCurrentRateIndex(token),
+                    EVO_LIBRARY.calculateInterestRate(
+                        liabilitiesAccrued,
+                        Datahub.returnAssetLogs(token),
+                        interestContract.fetchRateInfo(
+                            token,
+                            interestContract.fetchCurrentRateIndex(token)
+                        )
+                    )
+                );
+                InterestUpdated = true;
+            }
+*/
+/*
         if (
             interestContract
                 .fetchRateInfo(

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.20;
 //import "../interfaces/IDataHub.sol";
-
 interface IInterestData {
     struct interestDetails {
         uint256 lastUpdatedTime; // last updated time
@@ -41,6 +40,12 @@ interface IInterestData {
     ) external view returns (uint256);
 
     function chargeMassinterest(address token) external;
+
+        function returnInterestCharge(
+        address user,
+        address token,
+        uint256 liabilitiesAccrued
+    ) external view returns (uint256);
 
     function updateInterestIndex(
         address token,
