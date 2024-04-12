@@ -348,9 +348,7 @@ function updateInterestIndex(
             .totalBorrowedAmount;
 
         InterestRateEpochs[0][token][uint(currentInterestIndex[token])]
-            .totalAssetSuplyAtIndex = Datahub
-            .returnAssetLogs(token)
-            .totalAssetSupply;
+            .totalAssetSuplyAtIndex = Datahub.returnAssetLogs(token).totalAssetSupply;
 
         InterestRateEpochs[0][token][uint(currentInterestIndex[token])]
             .borrowProportionAtIndex = EVO_LIBRARY.calculateBorrowProportion(
@@ -380,9 +378,7 @@ function updateInterestIndex(
                 .totalBorrowedAmount;
 
             InterestRateEpochs[1][token][uint(currentInterestIndex[token] / 24)]
-                .totalAssetSuplyAtIndex = Datahub
-                .returnAssetLogs(token)
-                .totalAssetSupply;
+                .totalAssetSuplyAtIndex =  Datahub.returnAssetLogs(token).totalAssetSupply;
 
             InterestRateEpochs[1][token][uint(currentInterestIndex[token] / 24)]
                 .borrowProportionAtIndex = EVO_LIBRARY.calculateAverage(
@@ -574,7 +570,6 @@ function updateInterestIndex(
         uint256 liabilitiesAccrued
     ) public view returns (uint256) {
         (, uint256 liabilities, , , ) = Datahub.ReadUserData(user, token);
-
         uint256 interestCharge = EVO_LIBRARY.calculateCompoundedLiabilities(
             fetchCurrentRateIndex(token),
             calculateAverageCumulativeInterest(

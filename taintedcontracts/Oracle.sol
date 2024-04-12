@@ -239,7 +239,7 @@ contract Oracle is Ownable, RrpRequesterV0 {
         uint256 trade_amount
     ) private {
         Datahub.removeAssets(participant, asset, trade_amount);
-      //  Datahub.addPendingBalances(participant, asset, trade_amount);
+        Datahub.addPendingBalances(participant, asset, trade_amount);
     }
 
     /// The AirnodeRrpV0.sol protocol contract will callback here.

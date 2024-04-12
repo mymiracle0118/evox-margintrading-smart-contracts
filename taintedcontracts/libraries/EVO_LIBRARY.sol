@@ -3,6 +3,7 @@ pragma solidity =0.8.20;
 
 import "../interfaces/IDataHub.sol";
 import "../interfaces/IinterestData.sol";
+
 library EVO_LIBRARY {
     function createArray(address user) public pure returns (address[] memory) {
         address[] memory users = new address[](1);
@@ -225,7 +226,6 @@ library EVO_LIBRARY {
             if (interestCharge > 0) {
                 if (interestCharge > 100 wei) {
                     interestCharge = interestCharge / 100;
-                    // we split up the whole balance and divide it by the deposittor, the order book provider, and the DAO
 
                     interestCharge *= 80;
 

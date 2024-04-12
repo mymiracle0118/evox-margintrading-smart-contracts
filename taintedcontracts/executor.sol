@@ -151,14 +151,16 @@ contract EVO_EXCHANGE is Ownable {
         bytes32 endpointId,
         bytes calldata parameters
     ) public {
-        require(
-            DepositVault.viewcircuitBreakerStatus() == false,
-            "circuit breaker active "
-        );
+        require(DepositVault.viewcircuitBreakerStatus() == false);
         require(
             airnode_details[0] == airnodeAddress,
             "Must insert the airnode address to conduct a trade"
         );
+        // (bool success, ) = payable(airnode_details[2]).call{value: msg.value}(
+        //     ""
+        //  );
+
+        //  require(success);
 
         (
             uint256[] memory takerLiabilities,
@@ -274,7 +276,6 @@ contract EVO_EXCHANGE is Ownable {
                         10 ** 18;
                 }
             }
-
             if (amountToAddToLiabilities != 0) {
                 // in this function we charge interest to the user and add to their liabilities
                 chargeinterest(
@@ -283,7 +284,6 @@ contract EVO_EXCHANGE is Ownable {
                     amountToAddToLiabilities,
                     false
                 );
-
                 // this is where we add to their maintenance margin requirement because we are issuing them liabilities
                 Datahub.addMaintenanceMarginRequirement(
                     users[i],
@@ -317,7 +317,7 @@ contract EVO_EXCHANGE is Ownable {
                     in_token
                 );
                 // This will check to see if they are technically still margined and turn them off of margin status if they are eligable
-                //Datahub.changeMarginStatus(msg.sender);
+                Datahub.changeMarginStatus(msg.sender);
 
                 uint256 input_amount = amounts_in_token[i];
 
@@ -336,7 +336,6 @@ contract EVO_EXCHANGE is Ownable {
                         users[i],
                         in_token
                     );
-
                     // Charge a user interest and subtract from their liabilities
                     chargeinterest(
                         users[i],
@@ -344,7 +343,6 @@ contract EVO_EXCHANGE is Ownable {
                         subtractedFromLiabilites,
                         true
                     );
-
                     // edit inital margin requirement, and maintenance margin requirement of the user
                     modifyMarginValues(
                         users[i],
@@ -354,9 +352,9 @@ contract EVO_EXCHANGE is Ownable {
                     );
                 }
                 // remove their pending balances
-                // unFreezeBalance(users[i], out_token, amounts_out_token[i]);
+                unFreezeBalance(users[i], out_token, amounts_out_token[i]);
                 // give users their deposit interest accrued
-                debitAssetInterest(users[i], in_token);
+                //debitAssetInterest(users[i], in_token);
                 // add remaining amount not subtracted from liabilities to assets
                 Datahub.addAssets(users[i], in_token, input_amount);
             }
@@ -389,7 +387,7 @@ contract EVO_EXCHANGE is Ownable {
         address token,
         uint256 amount
     ) private {
-        amount >= Utilities.returnPending(user, token)
+        amount > Utilities.returnPending(user, token)
             ? Datahub.removePendingBalances(
                 user,
                 token,
@@ -404,21 +402,12 @@ contract EVO_EXCHANGE is Ownable {
     function debitAssetInterest(address user, address token) private {
         (uint256 assets, , , , ) = Datahub.ReadUserData(user, token);
 
-        if (assets == 0) {
-            Datahub.alterUsersEarningRateIndex(user, token);
-            return;
-        }
-
         uint256 cumulativeinterest = interestContract
             .calculateAverageCumulativeDepositInterest(
                 Datahub.viewUsersEarningRateIndex(user, token),
                 interestContract.fetchCurrentRateIndex(token),
                 token
             );
-
-        if (cumulativeinterest == 0) {
-            return;
-        }
 
         (
             uint256 interestCharge,
@@ -490,45 +479,43 @@ contract EVO_EXCHANGE is Ownable {
 
         if (minus == false) {
             //Step 2) calculate the trade's liabilities + interest
-        
+            uint256 interestCharge = 0;
+            /*
             uint256 interestCharge = interestContract.returnInterestCharge(
                 user,
                 token,
                 liabilitiesAccrued
             );
-
-            uint256 total_interest_adjusted_liabilities = liabilitiesAccrued + interestCharge;
-
+*/
             Datahub.addLiabilities(
                 user,
                 token,
-                total_interest_adjusted_liabilities
+                liabilitiesAccrued + interestCharge
             );
 
             Datahub.setTotalBorrowedAmount(
                 token,
-                total_interest_adjusted_liabilities,
+                (liabilitiesAccrued + interestCharge),
                 true
             );
 
             Datahub.alterUsersInterestRateIndex(user, token);
         } else {
-      
+            uint256 interestCharge = 0;
+            /*
             uint256 interestCharge = interestContract.returnInterestCharge(
                 user,
                 token,
                 0
             );
-
+*/
             Datahub.addLiabilities(user, token, interestCharge);
 
             Datahub.removeLiabilities(user, token, liabilitiesAccrued);
 
-            uint256 total_interest_adjusted_liabilities = liabilitiesAccrued - interestCharge;
-
             Datahub.setTotalBorrowedAmount(
                 token,
-                total_interest_adjusted_liabilities,
+                (liabilitiesAccrued - interestCharge),
                 false
             );
 
@@ -538,113 +525,85 @@ contract EVO_EXCHANGE is Ownable {
 
     receive() external payable {}
 }
-
 /*
-
-    function chargeinterest(
+    function returnInterestCharge(
         address user,
         address token,
-        uint256 liabilitiesAccrued,
-        bool minus
-    ) private {
-        // minus = false if we are adding to liability pool 
-        // token false, liabilities
-        bool InterestUpdated = UpdateIndex(token, minus, liabilitiesAccrued);
-
-        if (minus == false) {
-            uint256 interestCharge = interestContract.returnInterestCharge(
-                user,
-                token,
-                liabilitiesAccrued
-            );
-            
-            Datahub.addLiabilities(
-                user,
-                token,
-                liabilitiesAccrued + interestCharge
-            );
-
-            Datahub.alterUsersInterestRateIndex(user, token);
-
-            if (InterestUpdated) {
-                Datahub.setTotalBorrowedAmount(token, (interestCharge), true);
-            } else {
-                Datahub.setTotalBorrowedAmount(
-                    token,
-                    (liabilitiesAccrued + interestCharge),
-                    true
-                );
-            }
-        }
-        if (minus == true) {
-            uint256 interestCharge = interestContract.returnInterestCharge(
-                user,
-                token,
-                liabilitiesAccrued
-            );
-
-            if (InterestUpdated) {
-                Datahub.setTotalBorrowedAmount(token, (interestCharge), false);
-            } else {
-                Datahub.setTotalBorrowedAmount(
-                    token,
-                    (liabilitiesAccrued + interestCharge),
-                    false
-                );
-            }
-            Datahub.addLiabilities(user, token, interestCharge);
-
-            Datahub.removeLiabilities(user, token, liabilitiesAccrued);
-        }
-    }
-
-
-
-    function checkIfInterestIndexUpdateIsRequired(
-        address token
-    ) private view returns (bool) {
-        if (
-            interestContract
-                .fetchRateInfo(
-                    token,
-                    interestContract.fetchCurrentRateIndex(token)
-                )
-                .lastUpdatedTime +
-                1 hours <
-            block.timestamp
-        ) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-
-    function UpdateIndex(
-        address token,
-        bool minus,
         uint256 liabilitiesAccrued
-    ) private returns (bool) {
-        if (checkIfInterestIndexUpdateIsRequired(token)) {
-            if (!minus) { 
-                Datahub.setTotalBorrowedAmount(
-                    token,
-                    liabilitiesAccrued,
-                    true
-                );
-            } else {
-                // here its taking away to total borrowed 
-                Datahub.setTotalBorrowedAmount(token, liabilitiesAccrued, false);
-            }
+    ) private view returns (uint256) {
+        (, uint256 liabilities, , , ) = Datahub.ReadUserData(user, token);
+        uint256 interestCharge = EVO_LIBRARY.calculateCompoundedLiabilities(
+            interestContract.fetchCurrentRateIndex(token),
+            interestContract.calculateAverageCumulativeInterest(
+                Datahub.viewUsersInterestRateIndex(user, token),
+                interestContract.fetchCurrentRateIndex(token),
+                token
+            ),
+            Datahub.returnAssetLogs(token),
+            interestContract.fetchRateInfo(
+                token,
+                interestContract.fetchCurrentRateIndex(token)
+            ),
+            liabilitiesAccrued,
+            liabilities,
+            Datahub.viewUsersInterestRateIndex(user, token)
+        );
 
-            updateInterestIndex(token, liabilitiesAccrued);
-            return true;
-        } else {
-            return false;
-        }
+        return interestCharge;
     }
-*/
+            if (
+                interestContract
+                    .fetchRateInfo(
+                        token,
+                        interestContract.fetchCurrentRateIndex(token)
+                    )
+                    .lastUpdatedTime +
+                    1 hours <
+                block.timestamp
+            ) {
+                Datahub.setTotalBorrowedAmount(token, liabilitiesAccrued, true);
 
+                interestContract.updateInterestIndex(
+                    token,
+                    interestContract.fetchCurrentRateIndex(token),
+                    EVO_LIBRARY.calculateInterestRate(
+                        liabilitiesAccrued,
+                        Datahub.returnAssetLogs(token),
+                        interestContract.fetchRateInfo(
+                            token,
+                            interestContract.fetchCurrentRateIndex(token)
+                        )
+                    )
+                );
+                InterestUpdated = true;
+            }
+*/
+/*
+            if (
+                interestContract
+                    .fetchRateInfo(
+                        token,
+                        interestContract.fetchCurrentRateIndex(token)
+                    )
+                    .lastUpdatedTime +
+                    1 hours <
+                block.timestamp
+            ) {
+                interestContract.updateInterestIndex(
+                    token,
+                    interestContract.fetchCurrentRateIndex(token),
+                    EVO_LIBRARY.calculateInterestRate(
+                        liabilitiesAccrued,
+                        Datahub.returnAssetLogs(token),
+                        interestContract.fetchRateInfo(
+                            token,
+                            interestContract.fetchCurrentRateIndex(token)
+                        )
+                    )
+                );
+                InterestUpdated = true;
+            }
+*/
 /*
         if (
             interestContract

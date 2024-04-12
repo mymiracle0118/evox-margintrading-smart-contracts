@@ -497,40 +497,8 @@ contract Utility is Ownable {
             }
         }
     }
-/*
-    /// @notice Explain to an end user what this does
-    /// @dev Explain to a developer any extra details
-    /// @param token the token being targetted
-    /// @param index the index of the period
-    /// @return MassCharge
-    function chargeStaticLiabilityInterest(
-        address token,
-        uint256 index
-    ) public view returns (uint256) {
-        uint256 LiabilityToCharge = Datahub.returnAssetLogs(token).totalBorrowedAmount;
-        uint256 LiabilityDelta;
 
-        if (
-            Datahub.returnAssetLogs(token).totalBorrowedAmount >
-            interestContract.fetchLiabilitiesOfIndex(token, index)
-        ) {
-            LiabilityDelta =
-                Datahub.returnAssetLogs(token).totalBorrowedAmount -
-                interestContract.fetchLiabilitiesOfIndex(token, index);
-            LiabilityToCharge += LiabilityDelta;
-        } else {
-            LiabilityDelta =
-                interestContract.fetchLiabilitiesOfIndex(token, index) -
-                Datahub.returnAssetLogs(token).totalBorrowedAmount;
 
-            LiabilityToCharge -= LiabilityDelta;
-        }
-
-        uint256 MassCharge = (LiabilityToCharge *
-            ((interestContract.fetchCurrentRate(token)) / 8736)) / 10 ** 18;
-        return MassCharge;
-    }
-*/
     function fetchBorrowProportionList(
         uint256 startingIndex,
         uint256 endingIndex,

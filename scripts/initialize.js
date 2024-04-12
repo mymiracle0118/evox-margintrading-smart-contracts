@@ -159,6 +159,7 @@ Exchange deployed to 0x5330ad4cB863FcC7e2a9E8e976198b5B2B761B46
 
 
         */
+       /*
         const ex = "0x5330ad4cB863FcC7e2a9E8e976198b5B2B761B46"
         const DH = "0x4D4fdbC6090F85c504A5f9435ba5cb297049c506"
         const DV = "0x12d892F536854eb23edc219F7B0Fdd2D84C7D9C1"
@@ -167,6 +168,32 @@ Exchange deployed to 0x5330ad4cB863FcC7e2a9E8e976198b5B2B761B46
         const interest = "0x63b2D884f53eB59353B5aF9c98E3E4fcC1C7F373"
         const liq = "0x52cc3D11231760F42ddEE635EC86F9906a7dD0f2"
 
+        const ex = "0x03828bEa5DaB934F6A8BCEfd34EBf091AEeBd3f5"
+const DH = "0xe7175BC1D0F9EeC50c6E7b712e91b4A213761F90"
+const DV = "0xE6F619379E0b42510Fa1e4E97c7F2BC4B5050eDd"
+const oracle = "0x7bB4F0F41B620bFb5B80ad92171FbddA3BaB4C84"
+const util = "0x96cB745a9455401335CbdB4f27c68A7e2e165190"
+const interest = "0xBE5cCBCCBc38BE77B469B926a08439b50f54A2b6"
+const liq = "0x5a80DB3a9Bb97D3131fAFfc567eD3A456ae8f66F"
+
+const ex = "0x9D2111ea4BbD914Bb9e41302D96849CCba3AAEeA"
+const DH = "0x894F4a46A60b64c1E171F8e28455208DC0C91469"
+const DV = "0x1f1bF2411fEb48B5087A7956A6322d8B5a31cdEE"
+const oracle = "0x088845602AC3Ba1e38af7c1347FB651f118ac59f"
+const util = "0x8Ce6c9D657fE3012fCfDf741A1Cb6Ca66207dbd8"
+const interest = "0x467BC7055baB4ea8df6aDa49a08721EB1c9Ff588"
+const liq = "0x1c4e62533dC7F2976eD0767080A14d520354b8Bb"
+*/
+
+
+
+const ex = "0x3103C675D8089d5e427257a971A2e9a91b110E81"
+const DH = "0x86cba9af4280CDae3978D72f1227330eeAA10949"
+const DV = "0xC141d43D4c8fD4Ba2Ca92df54846C1cB6e738dEf"
+const oracle = "0xDc471F6D7A0c57f09Ac0075A5BD29eF9D09122B8"
+const util = "0x7CF14B97ED1C1285D0065DC031d650B33eFcC9BD"
+const interest = "0x6e8FeD9c27e6C64f2BD6847a88d43444ed49C77c"
+const liq = "0xCecC46884C9fFA5EaC78530B6019422252EFC190"
         const deployer = await hre.ethers.provider.getSigner(0); // change 0 / 1 for different wallets 
 
         console.log("INIT with the account:", deployer.address);

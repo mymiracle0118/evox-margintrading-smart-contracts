@@ -70,11 +70,6 @@ interface IUtilityContract {
         address token
     ) external view returns (uint256[] memory);
 
-    function chargeStaticLiabilityInterest(
-        address token,
-        uint256 index
-    ) external view returns (uint256);
-
     function maxBorrowCheck(
         address[2] memory pair,
         address[][2] memory participants,

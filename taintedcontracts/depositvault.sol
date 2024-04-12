@@ -272,13 +272,11 @@ contract DepositVault is Ownable {
         );
 
         require(
-            amount + Datahub.returnAssetLogs(token).totalBorrowedAmount <=
+            amount + Datahub.returnAssetLogs(token).totalBorrowedAmount <
                 Datahub.returnAssetLogs(token).totalAssetSupply,
             "You cannot withdraw this amount as it would exceed the maximum borrow proportion"
         );
 /*
-This piece of code is having problems its supposed to be basically a piece of code to protect against dangerous withdraws 
-
         if (getTotalAssetSupplyValue(token) > WithdrawThresholdValue) {
             if (
                 amount + token_withdraws_hour[token] >
@@ -339,40 +337,32 @@ This piece of code is having problems its supposed to be basically a piece of co
             interestContract.chargeMassinterest(token);
         }
     }
+
     function debitAssetInterest(address user, address token) private {
         (uint256 assets, , , , ) = Datahub.ReadUserData(user, token);
-
-        uint256 cumulativeinterest = interestContract
-            .calculateAverageCumulativeDepositInterest(
-                Datahub.viewUsersEarningRateIndex(user, token),
-                interestContract.fetchCurrentRateIndex(token),
-                token
-            );
-
         (
             uint256 interestCharge,
             uint256 OrderBookProviderCharge,
             uint256 DaoInterestCharge
         ) = EVO_LIBRARY.calculateCompoundedAssets(
                 interestContract.fetchCurrentRateIndex(token),
-                (cumulativeinterest / 10 ** 18),
+                interestContract.calculateAverageCumulativeDepositInterest(
+                    Datahub.viewUsersEarningRateIndex(user, token),
+                    interestContract.fetchCurrentRateIndex(token),
+                    token
+                ),
                 assets,
                 Datahub.viewUsersEarningRateIndex(user, token)
             );
-
         Datahub.alterUsersEarningRateIndex(user, token);
 
-        Datahub.addAssets(user, token, (interestCharge / 10 ** 18));
-        Datahub.addAssets(
-            Executor.fetchDaoWallet(),
-            token,
-            (DaoInterestCharge / 10 ** 18)
-        );
+        Datahub.addAssets(user, token, interestCharge);
+        Datahub.addAssets(Executor.fetchDaoWallet(), token, DaoInterestCharge);
 
         Datahub.addAssets(
             Executor.fetchOrderBookProvider(),
             token,
-            (OrderBookProviderCharge / 10 ** 18)
+            OrderBookProviderCharge
         );
     }
 

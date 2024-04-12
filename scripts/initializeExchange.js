@@ -36,14 +36,37 @@ const oracle = "0xb06ff8274F31ba7bFCDC734b810B55C48dE87C18"
 const util = "0x453B0471Ccc75382697ED645ee8Ede742DD09D50"
 const interest = "0x85c8b7e19045a528c89831bD93a47375931738f2"
 const liq = "0xFe1cC78055F628eB067FE696fB2a8dA57C3C6001"
-*/
-const ex = "0x5C1391c2b6eCCD3bc20F3103aE1FaF9Ecf083E8F"
+const ex = "0xab8Aafb59706D9C00b35BD9Eb90cb67CE2C2AeA8"
 const DH = "0x4D4fdbC6090F85c504A5f9435ba5cb297049c506"
 const DV = "0x12d892F536854eb23edc219F7B0Fdd2D84C7D9C1"
 const oracle = "0x0d2FD2AC9d9314B3C35473e1ba0DFC04c6eCb5EF"
 const util = "0xfe173D97B0947746454eab61b7fBc09E5E61E560"
 const interest = "0x63b2D884f53eB59353B5aF9c98E3E4fcC1C7F373"
 const liq = "0x52cc3D11231760F42ddEE635EC86F9906a7dD0f2"
+
+const ex = "0xd77c2686162ae9F8a8Fc9991A9Aff8603CF1822D"
+const DH = "0xe7175BC1D0F9EeC50c6E7b712e91b4A213761F90"
+const DV = "0xE6F619379E0b42510Fa1e4E97c7F2BC4B5050eDd"
+const oracle = "0x7bB4F0F41B620bFb5B80ad92171FbddA3BaB4C84"
+const util = "0x96cB745a9455401335CbdB4f27c68A7e2e165190"
+const interest = "0xBE5cCBCCBc38BE77B469B926a08439b50f54A2b6"
+const liq = "0x5a80DB3a9Bb97D3131fAFfc567eD3A456ae8f66F"
+
+*/
+//const ex = "0xb0F76ECA4Ef70530d86C2151CAa577078542d29f"
+//const ex ="0xC9B4c417F2F97d85B45882291Ee5f3e95F2f2C0B"
+//const ex = "0x43FBaF1202eC9238199BA37cfd2dd0aAEe2E0418"
+//const ex = "0xB8375BC858447fd6fAd122736D726259AD64dB97"
+
+//const ex = "0x38d9Ddca6883C1855Bdf1ac61B3F9322c03AcE11"
+const ex = "0x7E1557162Dd5C01ddE69815e40A8392F292C0f4f"
+const DH = "0x894F4a46A60b64c1E171F8e28455208DC0C91469"
+const DV = "0x1f1bF2411fEb48B5087A7956A6322d8B5a31cdEE"
+const oracle = "0x088845602AC3Ba1e38af7c1347FB651f118ac59f"
+const util = "0x8Ce6c9D657fE3012fCfDf741A1Cb6Ca66207dbd8"
+const interest = "0x467BC7055baB4ea8df6aDa49a08721EB1c9Ff588"
+const liq = "0x1c4e62533dC7F2976eD0767080A14d520354b8Bb"
+
         const deployer = await hre.ethers.provider.getSigner(0); // change 0 / 1 for different wallets 
 
         console.log("INIT with the account:", deployer.address);
@@ -66,17 +89,36 @@ const liq = "0x52cc3D11231760F42ddEE635EC86F9906a7dD0f2"
         const SETUP = await Utils.alterAdminRoles(DH, DV, oracle, interest, liq, ex);
 
         SETUP.wait()
-
+/*
+        address _DataHub,
+        address _deposit_vault,
+        address _oracle,
+        address _interest,
+        address _liquidator,
+        address _ex
+*/
 
 
         const SETUPEX = await Exchange.alterAdminRoles(DH, DV, oracle, util, interest, liq);
-
+/*
+    address _datahub,
+        address _deposit_vault,
+        address _oracle,
+        address _util,
+        address _int,
+        address _liquidator
+*/
    
         SETUPEX.wait()
 
 
         const setupDV = await DepositVault.alterAdminRoles(DH, ex, interest)
-
+/*
+      address dataHub,
+        address executor,
+        address interest
+*/
+   
         setupDV.wait();
 
 
@@ -89,16 +131,31 @@ const liq = "0x52cc3D11231760F42ddEE635EC86F9906a7dD0f2"
         const setup = await DataHub.alterAdminRoles(DV, ex, oracle, interest, util);
 
         setup.wait();
-
+/*
+     address _deposit_vault,
+        address _executor,
+        address _oracle,
+        address _interest,
+        address _utils
+*/
 
         const oraclesetup = await Oracle.alterAdminRoles(ex, DH, DV);
 
         oraclesetup.wait();
 
-
+/*
+        address _ex,
+        address _DataHub,
+        address _deposit_vault
+*/
 
         const interestSetup = await _Interest.alterAdminRoles(DH, ex, DV, util);
-   
+   /*
+     address _dh,
+        address _executor,
+        address _dv,
+        address _utils
+   */
 
         interestSetup.wait();
 

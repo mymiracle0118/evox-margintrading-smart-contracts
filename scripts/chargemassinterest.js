@@ -3,7 +3,7 @@ const InterestAbi = require("../artifacts/contracts/interestData.sol/interestDat
 
 async function main() {
 
-    const interest = "0x63b2D884f53eB59353B5aF9c98E3E4fcC1C7F373"
+    const interest = "0xBE5cCBCCBc38BE77B469B926a08439b50f54A2b6"
 
     const USDT = "0xaBAD60e4e01547E2975a96426399a5a0578223Cb"
 
@@ -16,8 +16,9 @@ async function main() {
     const _Interest = new hre.ethers.Contract(interest, InterestAbi.abi, deployer);
 
     const interestREXE = await _Interest.chargeMassinterest(REXE)
-    interestREXE.wait()
-    console.log("Interest REXE  has been charged")
+  // const interestREXE = await _Interest.fetchCurrentRate(USDT);
+  interestREXE.wait();
+    console.log(interestREXE,"Interest REXE  has been charged");
     const interestUSDT = await _Interest.chargeMassinterest(USDT)
     interestUSDT.wait();
     console.log("Interest USDT  has been charged")
