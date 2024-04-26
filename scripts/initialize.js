@@ -187,13 +187,13 @@ const liq = "0x1c4e62533dC7F2976eD0767080A14d520354b8Bb"
 
 
 
-const ex = "0x3103C675D8089d5e427257a971A2e9a91b110E81"
-const DH = "0x86cba9af4280CDae3978D72f1227330eeAA10949"
-const DV = "0xC141d43D4c8fD4Ba2Ca92df54846C1cB6e738dEf"
-const oracle = "0xDc471F6D7A0c57f09Ac0075A5BD29eF9D09122B8"
-const util = "0x7CF14B97ED1C1285D0065DC031d650B33eFcC9BD"
-const interest = "0x6e8FeD9c27e6C64f2BD6847a88d43444ed49C77c"
-const liq = "0xCecC46884C9fFA5EaC78530B6019422252EFC190"
+const ex = "0x65551911f31301E8CcE2a2F1104CBcb35944d0E7"
+const DH = "0xC2A15E43eB77Dc4cE8d4aD106af3E0bE36cd3c90"
+const DV = "0x597ae39568142aB17863deB0C269562e00003b62"
+const oracle = "0xdD502fD847103BC4c338334A1716cE37cf6840ea"
+const util = "0x812838c77976862c3CbB0071b3bb606181eD3015"
+const interest = "0xAf464bC5953C756931D07caf142E3bc771C6a4F9"
+const liq = "0x5bdc0142935c11B3F8Ac662bFf25D82c75338dC2"
         const deployer = await hre.ethers.provider.getSigner(0); // change 0 / 1 for different wallets 
 
         console.log("INIT with the account:", deployer.address);
