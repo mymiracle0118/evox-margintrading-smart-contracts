@@ -4,6 +4,7 @@ require('hardhat-abi-exporter');
 require('hardhat-gui');
 require('hardhat-deploy');
 require("@solarity/hardhat-markup")
+require("@nomicfoundation/hardhat-verify");
 //https://www.npmjs.com/package/hardhat-abi-exporter
 /** @type import('hardhat/config').HardhatUserConfig */
 
@@ -54,5 +55,27 @@ module.exports = {
       blockGasLimit: "10000000000042972000000" // whatever you want here,
 
     },
+    amoy: {
+      url: `https://rpc-amoy.polygon.technology/`,
+      accounts: [MAKERPK, TAKERPK],
+      gasLimit: 6000000000000,
+      blockGasLimit: "10000000000042972000000" // whatever you want here,
+    },
+  },
+  etherscan: {
+    apiKey: {
+      polygonZkEVMTestnet: "GEB14UEQI399I4ZTWUS9U732ES87B8HP54",
+      amoy: "HVT638DFVKSB37NX5G5N8NTHY8AB9IG9RQ",
+    },
+    customChains: [
+      {
+        network: "amoy",
+        chainId: 80002,
+        urls: {
+          apiURL: "https://api-amoy.polygonscan.com/api",
+          browserURL: "https://amoy.polygonscan.com"
+        }
+      }
+    ],
   },
 };
