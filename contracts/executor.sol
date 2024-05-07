@@ -317,7 +317,7 @@ contract EVO_EXCHANGE is Ownable {
                     in_token
                 );
                 // This will check to see if they are technically still margined and turn them off of margin status if they are eligable
-                //Datahub.changeMarginStatus(msg.sender);
+                Datahub.changeMarginStatus(msg.sender);
 
                 uint256 input_amount = amounts_in_token[i];
 
