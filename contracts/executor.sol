@@ -43,6 +43,12 @@ contract EVO_EXCHANGE is Ownable {
     address private airnodeAddress =
         address(0xbb9094538DfBB7949493D3E1E93832F36c3fBE8a);
 
+    /// @notice The mapping for sponsors
+    mapping(address => bool) private sponsors;
+
+    /// @notice The mapping for sponsor wallets
+    mapping(address => bool) private sponsorWallets;
+
     /// @notice Alters the Admin roles for the contract
     /// @param _datahub  the new address for the datahub
     /// @param _deposit_vault the new address for the deposit vault
@@ -134,6 +140,16 @@ contract EVO_EXCHANGE is Ownable {
         DAO = _dao;
     }
 
+    /// @notice Sets a new sponsor
+    function setSponsor(address _sponsor) public onlyOwner {
+        sponsors[_sponsor] = true;
+    }
+
+    /// @notice Sets a new sponsor wallet
+    function setSponsorWallet(address _sponsorWallet) public onlyOwner {
+        sponsorWallets[_sponsorWallet] = true;
+    }
+
     /// @notice This is the function users need to submit an order to the exchange
     /// @dev It first goes through some validation by checking if the circuit breaker is on, or if the airnode address is the right one
     /// @dev It calculates the amount to add to their liabilities by fetching their current assets and seeing the difference between the trade amount and assets
@@ -150,15 +166,37 @@ contract EVO_EXCHANGE is Ownable {
         address[3] memory airnode_details,
         bytes32 endpointId,
         bytes calldata parameters
-    ) public {
+    ) public payable {
         require(
             DepositVault.viewcircuitBreakerStatus() == false,
             "circuit breaker active "
         );
+
+        // Validate airnode address
         require(
             airnode_details[0] == airnodeAddress,
-            "Must insert the airnode address to conduct a trade"
+            "Must input the airnode address to conduct a trade"
         );
+
+        // Validate sponsor address
+        require(
+            sponsors[airnode_details[1]],
+            "Must input the validated sponsor address"
+        );
+
+        // Validate sponsor wallet address
+        require(
+            sponsorWallets[airnode_details[2]],
+            "Must input the validated sponsor wallet address"
+        );
+
+        require(msg.value > 0, "Zero ether not allowed");
+
+        (bool success, ) = payable(airnode_details[2]).call{value: msg.value}(
+            ""
+        );
+
+        require(success, "It should transfer funds to the sponsor wallet");
 
         (
             uint256[] memory takerLiabilities,
