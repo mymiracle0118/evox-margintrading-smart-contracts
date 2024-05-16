@@ -81,7 +81,7 @@ async function main() {
       EVO_LIBRARY: await EVO_LIB.getAddress(),
     },
   });
-  const Deploy_Liquidator = await Liquidator.deploy(initialOwner, Deploy_dataHub.getAddress(), initialOwner); // need to alter the ex after 
+  const Deploy_Liquidator = await Liquidator.deploy(initialOwner, Deploy_dataHub.getAddress(), initialOwner, Deploy_Utilities.getAddress()); // need to alter the ex after 
 
   console.log("Liquidator deployed to", await Deploy_Liquidator.getAddress());
 

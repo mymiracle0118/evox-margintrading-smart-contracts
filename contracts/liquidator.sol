@@ -34,7 +34,7 @@ contract Liquidator is Ownable2Step {
 
     /// @notice This alters the admin roles for the contract
     /// @param _executor the address of the new executor contract
-    function alterAdminRoles(address _executor) public onlyOwner {
+    function alterAdminRoles(address _executor) external onlyOwner {
         Executor = IExecutor(_executor);
     }
 

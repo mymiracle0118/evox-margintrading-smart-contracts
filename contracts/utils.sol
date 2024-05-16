@@ -17,7 +17,7 @@ contract Utility is Ownable2Step {
         address _interest,
         address _liquidator,
         address _ex
-    ) public onlyOwner {
+    ) external onlyOwner {
         admins[address(Datahub)] = false;
         admins[_DataHub] = true;
         Datahub = IDataHub(_DataHub);
@@ -38,6 +38,10 @@ contract Utility is Ownable2Step {
         admins[_liquidator] = true;
         delete admins[_ex];
         admins[_ex] = true;
+    }
+
+    function setAdminRole(address _admin) external onlyOwner {
+        admins[_admin] = true;
     }
 
     /// @notice Alters the Admin roles for the contract

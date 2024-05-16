@@ -74,7 +74,7 @@ contract DataHub is Ownable2Step {
         address _oracle,
         address _interest,
         address _utils
-    ) public onlyOwner {
+    ) external onlyOwner {
         admins[address(interestContract)] = false;
         admins[_executor] = true;
         admins[_deposit_vault] = true;
@@ -83,6 +83,10 @@ contract DataHub is Ownable2Step {
         admins[_utils] = true;
         interestContract = IInterestData(_interest);
 
+    }
+
+    function setAdminRole(address _admin) external onlyOwner {
+        admins[_admin] = true;
     }
 
     /// @notice Keeps track of a users data

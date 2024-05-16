@@ -31,7 +31,7 @@ contract DepositVault is Ownable2Step {
         address dataHub,
         address executor,
         address interest
-    ) public onlyOwner {
+    ) external onlyOwner {
         admins[address(Datahub)] = false;
         admins[dataHub] = true;
         Datahub = IDataHub(dataHub);
@@ -43,6 +43,10 @@ contract DepositVault is Ownable2Step {
         admins[address(interestContract)] = false;
         admins[interest] = true;
         interestContract = IInterestData(interest);
+    }
+
+    function setAdminRole(address _admin) external onlyOwner {
+        admins[_admin] = true;
     }
 
     IDataHub public Datahub;

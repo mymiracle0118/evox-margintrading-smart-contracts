@@ -39,12 +39,16 @@ contract Oracle is Ownable2Step, RrpRequesterV0 {
         address _ex,
         address _DataHub,
         address _deposit_vault
-    ) public onlyOwner {
+    ) external onlyOwner {
         admins[address(Executor)] = false;
         admins[_ex] = true;
         Datahub = IDataHub(_DataHub);
         DepositVault = IDepositVault(_deposit_vault);
         Executor = IExecutor(_ex);
+    }
+
+    function setAdminRole(address _admin) external onlyOwner {
+        admins[_admin] = true;
     }
 
     /** Mapping's  */
@@ -312,7 +316,7 @@ contract Oracle is Ownable2Step, RrpRequesterV0 {
 
         for (uint256 i = 0; i < makers.length; i++) {
             // (uint256 assets, , , , ) = Datahub.ReadUserData(makers[i], pair[1]);
-            (, , uint256 pending, , ) = Datahub.ReadUserData(makers[i], pair[0]);
+            (, , uint256 pending, , ) = Datahub.ReadUserData(makers[i], pair[1]);
             uint256 MakerbalanceToAdd = maker_amounts[i] > pending
                 ? pending
                 : maker_amounts[i];
@@ -320,7 +324,7 @@ contract Oracle is Ownable2Step, RrpRequesterV0 {
             Datahub.addAssets(makers[i], pair[1], MakerbalanceToAdd);
             Datahub.removePendingBalances(
                 makers[i],
-                pair[0],
+                pair[1],
                 MakerbalanceToAdd
             );
         }
