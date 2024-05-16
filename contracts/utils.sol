@@ -2,14 +2,14 @@
 pragma solidity =0.8.20;
 
 import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "./interfaces/IDataHub.sol";
 import "./interfaces/IDepositVault.sol";
 import "./interfaces/IOracle.sol";
 import "./libraries/EVO_LIBRARY.sol";
 import "./interfaces/IExecutor.sol";
 
-contract Utility is Ownable {
+contract Utility is Ownable2Step {
     function alterAdminRoles(
         address _DataHub,
         address _deposit_vault,
@@ -18,15 +18,25 @@ contract Utility is Ownable {
         address _liquidator,
         address _ex
     ) public onlyOwner {
+        admins[address(Datahub)] = false;
         admins[_DataHub] = true;
         Datahub = IDataHub(_DataHub);
+
+        admins[address(DepositVault)] = false;
         admins[_deposit_vault] = true;
         DepositVault = IDepositVault(_deposit_vault);
+
+        admins[address(Oracle)] = false;
         admins[_oracle] = true;
         Oracle = IOracle(_oracle);
+
+        admins[address(interestContract)] = false;
         admins[_interest] = true;
         interestContract = IInterestData(_interest);
+
+        delete admins[_liquidator];
         admins[_liquidator] = true;
+        delete admins[_ex];
         admins[_ex] = true;
     }
 
@@ -40,7 +50,7 @@ contract Utility is Ownable {
         address _depositVault,
         address _oracle,
         address _int
-    ) public onlyOwner {
+    ) external onlyOwner {
         Datahub = IDataHub(_datahub);
         DepositVault = IDepositVault(_depositVault);
         Oracle = IOracle(_oracle);

@@ -2,7 +2,7 @@
 pragma solidity =0.8.20;
 
 import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "./interfaces/IDataHub.sol";
 import "./interfaces/IDepositVault.sol";
 import "./interfaces/IOracle.sol";
@@ -15,7 +15,7 @@ import "./interfaces/IinterestData.sol";
 /// @notice This contract is responsible for sending trade requests to the Oracle
 /// contract to be validated by the API3 Airnodes and executing the trades once confirmed
 
-contract EVO_EXCHANGE is Ownable {
+contract EVO_EXCHANGE is Ownable2Step {
     /** Address's  */
 
     /// @notice Datahub contract
@@ -54,26 +54,37 @@ contract EVO_EXCHANGE is Ownable {
     /// @param _deposit_vault the new address for the deposit vault
     /// @param _oracle the new address for oracle
     /// @param _util the new address for the utility contract
-    /// @param  _int the new address for the interest contract
+    /// @param  _interest the new address for the interest contract
     /// @param _liquidator the liquidator addresss
     function alterAdminRoles(
         address _datahub,
         address _deposit_vault,
         address _oracle,
         address _util,
-        address _int,
+        address _interest,
         address _liquidator
     ) public onlyOwner {
+        admins[address(Datahub)] = false;
         admins[_datahub] = true;
         Datahub = IDataHub(_datahub);
+
+        admins[address(DepositVault)] = false;
         admins[_deposit_vault] = true;
         DepositVault = IDepositVault(_deposit_vault);
+
+        admins[address(Oracle)] = false;
         admins[_oracle] = true;
         Oracle = IOracle(_oracle);
+
+        admins[address(Utilities)] = false;
         admins[_util] = true;
         Utilities = IUtilityContract(_util);
-        admins[_int] = true;
-        interestContract = IInterestData(_int);
+
+        admins[address(interestContract)] = false;
+        admins[_interest] = true;
+        interestContract = IInterestData(_interest);
+
+        admins[address(Liquidator)]= false;
         admins[_liquidator] = true;
         Liquidator = _liquidator;
     }
@@ -126,27 +137,27 @@ contract EVO_EXCHANGE is Ownable {
     }
 
     /// @notice Sets a new Airnode Address
-    function setAirnodeAddress(address airnode) public onlyOwner {
+    function setAirnodeAddress(address airnode) external onlyOwner {
         airnodeAddress = airnode;
     }
 
     /// @notice Sets a new orderbook provider wallet
-    function setOrderBookProvider(address _newwallet) public onlyOwner {
+    function setOrderBookProvider(address _newwallet) external onlyOwner {
         OrderBookProviderWallet = _newwallet;
     }
 
     /// @notice Sets a new DAO wallet
-    function setDaoWallet(address _dao) public onlyOwner {
+    function setDaoWallet(address _dao) external onlyOwner {
         DAO = _dao;
     }
 
     /// @notice Sets a new sponsor
-    function setSponsor(address _sponsor) public onlyOwner {
+    function setSponsor(address _sponsor) external onlyOwner {
         sponsors[_sponsor] = true;
     }
 
     /// @notice Sets a new sponsor wallet
-    function setSponsorWallet(address _sponsorWallet) public onlyOwner {
+    function setSponsorWallet(address _sponsorWallet) external onlyOwner {
         sponsorWallets[_sponsorWallet] = true;
     }
 
@@ -166,9 +177,9 @@ contract EVO_EXCHANGE is Ownable {
         address[3] memory airnode_details,
         bytes32 endpointId,
         bytes calldata parameters
-    ) public payable {
+    ) external payable {
         require(
-            DepositVault.viewcircuitBreakerStatus() == false,
+            !DepositVault.viewcircuitBreakerStatus(),
             "circuit breaker active "
         );
 
@@ -249,7 +260,7 @@ contract EVO_EXCHANGE is Ownable {
         uint256[] memory MakerliabilityAmounts,
         bool[][2] memory trade_side
     ) external checkRoleAuthority {
-        require(DepositVault.viewcircuitBreakerStatus() == false);
+        require(!DepositVault.viewcircuitBreakerStatus(), "circuit breaker active");
         Datahub.checkIfAssetIsPresent(takers, pair[1]);
         Datahub.checkIfAssetIsPresent(makers, pair[0]);
 
@@ -297,7 +308,7 @@ contract EVO_EXCHANGE is Ownable {
             uint256 amountToAddToLiabilities = liabilityAmounts[i];
 
             if (msg.sender != address(Liquidator)) {
-                if (trade_side[i] == true) {} else {
+                if (trade_side[i]) {} else {
                     // This is where we take trade fees it is not called if the msg.sender is the liquidator
                     Datahub.addAssets(
                         fetchDaoWallet(),
@@ -362,7 +373,7 @@ contract EVO_EXCHANGE is Ownable {
                 if (msg.sender != address(Liquidator)) {
                     // below we charge trade fees it is not called if the msg.sender is the liquidator
 
-                    if (trade_side[i] == false) {} else {
+                    if (!trade_side[i]) {} else {
                         input_amount =
                             (input_amount * Datahub.tradeFee(in_token, 0)) /
                             10 ** 18;
@@ -392,7 +403,7 @@ contract EVO_EXCHANGE is Ownable {
                     );
                 }
                 // remove their pending balances
-                // unFreezeBalance(users[i], out_token, amounts_out_token[i]);
+                Datahub.removePendingBalances(users[i], out_token, amounts_out_token[i]);
                 // give users their deposit interest accrued
                 debitAssetInterest(users[i], in_token);
                 // add remaining amount not subtracted from liabilities to assets
@@ -422,19 +433,19 @@ contract EVO_EXCHANGE is Ownable {
     /// @param user the user who we are unfreezing the balance of
     /// @param token the token that was involved in their trade
     /// @param amount the amount to be removed from pending
-    function unFreezeBalance(
-        address user,
-        address token,
-        uint256 amount
-    ) private {
-        amount >= Utilities.returnPending(user, token)
-            ? Datahub.removePendingBalances(
-                user,
-                token,
-                Utilities.returnPending(user, token)
-            )
-            : Datahub.removePendingBalances(user, token, amount);
-    }
+    // function unFreezeBalance(
+    //     address user,
+    //     address token,
+    //     uint256 amount
+    // ) private {
+    //     amount >= Utilities.returnPending(user, token)
+    //         ? Datahub.removePendingBalances(
+    //             user,
+    //             token,
+    //             Utilities.returnPending(user, token)
+    //         )
+    //         : Datahub.removePendingBalances(user, token, amount);
+    // }
 
     /// @notice This pays out the user for depositted assets
     /// @param user the user to be debitted
@@ -526,7 +537,7 @@ contract EVO_EXCHANGE is Ownable {
         //Step 1) charge mass interest on outstanding liabilities
         interestContract.chargeMassinterest(token);
 
-        if (minus == false) {
+        if (!minus) {
             //Step 2) calculate the trade's liabilities + interest
         
             uint256 interestCharge = interestContract.returnInterestCharge(
@@ -572,6 +583,13 @@ contract EVO_EXCHANGE is Ownable {
 
             Datahub.alterUsersInterestRateIndex(user, token);
         }
+    }
+
+    function withdrawAll(address payable owner) external  onlyOwner {
+        uint contractBalance = address(this).balance;
+        require(contractBalance > 0, "No balance to withdraw");
+        payable(owner).transfer(contractBalance);
+
     }
 
     receive() external payable {}

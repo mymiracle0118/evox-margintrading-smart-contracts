@@ -2,7 +2,7 @@
 pragma solidity =0.8.20;
 
 import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 
 interface IInterestData {
@@ -11,7 +11,7 @@ interface IInterestData {
     ) external view returns (uint256);
 }
 
-contract DataHub is Ownable {
+contract DataHub is Ownable2Step {
 
     struct UserData {
         mapping(address => uint256) asset_info; // tracks their portfolio (margined, and depositted)
@@ -34,6 +34,7 @@ contract DataHub is Ownable {
         uint256 liquidationFee;
         uint256 initialMarginRequirement; // not for potantial removal - unnessecary
         uint256 MaintenanceMarginRequirement;
+        uint256 tokenTransferFee;  // add zero for normal token , add transfer fee amount if there is fee on transfer 
         uint256 totalAssetSupply;
         uint256 totalBorrowedAmount;
         uint256 optimalBorrowProportion; // need to brainsotrm on how to set this information
@@ -74,6 +75,7 @@ contract DataHub is Ownable {
         address _interest,
         address _utils
     ) public onlyOwner {
+        admins[address(interestContract)] = false;
         admins[_executor] = true;
         admins[_deposit_vault] = true;
         admins[_oracle] = true;
@@ -161,7 +163,7 @@ contract DataHub is Ownable {
         address user,
         address token,
         uint256 amount
-    ) external checkRoleAuthority {
+    ) public checkRoleAuthority {
         userdata[user].asset_info[token] -= amount;
     }
 
@@ -226,7 +228,14 @@ contract DataHub is Ownable {
         address token,
         uint256 amount
     ) external checkRoleAuthority {
-        userdata[user].pending_balances[token] += amount;
+        // check that we are not removing  balance twice 
+        uint256 assets = userdata[user].asset_info[token];
+        uint256 pending_amount = amount > assets ? assets : amount;
+
+        // cant have negative balance for the user 
+        userdata[user].pending_balances[token] += pending_amount;
+        // subracts from assest
+        removeAssets(user, token, pending_amount);
     }
 
     /// @notice This removes a pending balance for the user on a token they are trading
@@ -239,7 +248,9 @@ contract DataHub is Ownable {
         address token,
         uint256 amount
     ) external checkRoleAuthority {
-        userdata[user].pending_balances[token] -= amount;
+        uint256 pendingBalances = userdata[user].pending_balances[token];
+        uint256 amountToRemove = amount > pendingBalances ? pendingBalances : amount;
+        userdata[user].pending_balances[token] -= amountToRemove;
     }
 
     function alterMMR(
@@ -351,7 +362,7 @@ contract DataHub is Ownable {
     ) external checkRoleAuthority {
         uint256 AssetBalance = userdata[user].asset_info[token];
         //  - userdata[user].pending_balances[token];
-        if (userdata[user].margined == false) {
+        if (!userdata[user].margined) {
             if (AssetBalance < BalanceToLeave) {
                 userdata[user].margined = true;
             }
@@ -456,7 +467,7 @@ contract DataHub is Ownable {
         uint256 amount,
         bool pos_neg
     ) external checkRoleAuthority {
-        if (pos_neg == true) {
+        if (pos_neg) {
             assetdata[token].totalAssetSupply += amount;
         } else {
             assetdata[token].totalAssetSupply -= amount;
@@ -527,6 +538,7 @@ contract DataHub is Ownable {
             liquidationFee: liquidationFee,
             initialMarginRequirement: initialMarginRequirement,
             MaintenanceMarginRequirement: MaintenanceMarginRequirement,
+            tokenTransferFee: 0,
             totalAssetSupply: 0,
             totalBorrowedAmount: 0,
             optimalBorrowProportion: optimalBorrowProportion,
@@ -551,6 +563,16 @@ contract DataHub is Ownable {
         uint256 value
     ) external checkRoleAuthority {
         assetdata[token].assetPrice = value;
+    }
+
+    /// @notice Changes the assets transfer_fee
+    /// @param token the token being targetted
+    /// @param value the new Fee
+    function setTokenTransferFee(
+        address token,
+        uint256 value
+    ) external checkRoleAuthority {
+        assetdata[token].tokenTransferFee = value;
     }
 
     /// -----------------------------------------------------------------------
@@ -717,6 +739,20 @@ contract DataHub is Ownable {
             }
         }
         return AMMR;
+    }
+    
+    /// @notice Returns a TokenTransferFee data
+    /// @param token address of the token 
+    /// @return fee value of the Fee 
+    function tokenTransferFees(address token) external view returns(uint256 fee){
+        return assetdata[token].tokenTransferFee;
+    }
+
+    function withdrawAll(address payable owner) external  onlyOwner {
+        uint contractBalance = address(this).balance;
+        require(contractBalance > 0, "No balance to withdraw");
+        payable(owner).transfer(contractBalance);
+
     }
 
     receive() external payable {}

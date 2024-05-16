@@ -2,7 +2,7 @@
 pragma solidity =0.8.20;
 
 import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "./interfaces/IDataHub.sol";
 import "./interfaces/IDepositVault.sol";
 import "./interfaces/IOracle.sol";
@@ -10,7 +10,7 @@ import "./interfaces/IUtilityContract.sol";
 import "./libraries/EVO_LIBRARY.sol";
 import "./interfaces/IExecutor.sol";
 
-contract Liquidator is Ownable {
+contract Liquidator is Ownable2Step {
     /* LIQUIDATION + INTEREST FUNCTIONS */
 
     IUtilityContract public Utilities;
@@ -22,10 +22,12 @@ contract Liquidator is Ownable {
     constructor(
         address initialOwner,
         address _DataHub,
-        address _executor
+        address _executor,
+        address _utility
     ) Ownable(initialOwner) {
         Datahub = IDataHub(_DataHub);
         Executor = IExecutor(_executor);
+        Utilities = IUtilityContract(_utility);
     }
 
     mapping(address => uint256) FeesCollected; // token --> amount
@@ -61,7 +63,7 @@ contract Liquidator is Ownable {
         address[2] memory tokens, // liability tokens first, tokens to liquidate after
         uint256 spendingCap,
         bool long
-    ) public {
+    ) external {
         require(CheckForLiquidation(user), "not liquidatable"); // AMMR liquidatee --> checks AMMR
         require(tokens.length == 2, "have to select a pair");
 
@@ -254,7 +256,7 @@ contract Liquidator is Ownable {
         uint256 trade_amount
     ) private {
         // pay fee take less from the maker if they are a maker
-        Datahub.removeAssets(participant, asset, trade_amount);
+        // Datahub.removeAssets(participant, asset, trade_amount);
         Datahub.addPendingBalances(participant, asset, trade_amount);
     }
 

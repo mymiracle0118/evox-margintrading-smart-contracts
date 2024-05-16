@@ -288,7 +288,7 @@ library EVO_LIBRARY {
             uint256 hourlyChargesBase = 1;
             int256 hourlyChargesExp = 0;
 
-            while (amountOfBilledHours > 0) {
+            while (amountOfBilledHours != 0) {
                 if (amountOfBilledHours % 2 == 1) {
                     (uint256 _base, int256 _exp) = normalize(
                         (hourlyChargesBase * averageHourlyBase)

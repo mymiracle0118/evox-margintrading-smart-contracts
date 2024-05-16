@@ -2,14 +2,14 @@
 pragma solidity =0.8.20;
 
 import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol" as ERC20;
 import "@openzeppelin/contracts/interfaces/IERC20.sol" as IERC20;
 import "./libraries/EVO_LIBRARY.sol";
 import "./interfaces/IExecutor.sol";
 import "./interfaces/IinterestData.sol";
 
-contract DepositVault is Ownable {
+contract DepositVault is Ownable2Step {
     constructor(
         address initialOwner,
         address dataHub,
@@ -32,10 +32,15 @@ contract DepositVault is Ownable {
         address executor,
         address interest
     ) public onlyOwner {
+        admins[address(Datahub)] = false;
         admins[dataHub] = true;
         Datahub = IDataHub(dataHub);
+
+        admins[address(Executor)] = false;
         admins[executor] = true;
         Executor = IExecutor(executor);
+
+        admins[address(interestContract)] = false;
         admins[interest] = true;
         interestContract = IInterestData(interest);
     }
@@ -52,17 +57,17 @@ contract DepositVault is Ownable {
     mapping(uint256 => address) public userId;
 
     mapping(address => uint256) public token_withdraws_hour;
-    uint256 lastWithdrawUpdateTime = block.timestamp;
+    uint256 public lastWithdrawUpdateTime = block.timestamp;
 
     event hazard(uint256, uint256);
 
     error DangerousWithdraw();
 
-    bool circuitBreakerStatus = false;
+    bool public circuitBreakerStatus = false;
 
     uint256 public lastUpdateTime;
 
-    function toggleCircuitBreaker(bool onOff) public onlyOwner {
+    function toggleCircuitBreaker(bool onOff) external onlyOwner {
         circuitBreakerStatus = onOff;
     }
 
@@ -94,7 +99,7 @@ contract DepositVault is Ownable {
     /// @param user the user you want to fetch their status for
     /// @return bool if they are initilized or not
     function fetchstatus(address user) external view returns (bool) {
-        if (userInitialized[user] == true) {
+        if (userInitialized[user]) {
             return true;
         } else {
             return false;
@@ -169,12 +174,17 @@ contract DepositVault is Ownable {
         uint256 amount
     ) external returns (bool) {
         require(
-            Datahub.returnAssetLogs(token).initialized == true,
+            Datahub.returnAssetLogs(token).initialized,
             "this asset is not available to be deposited or traded"
         );
         IERC20.IERC20 ERC20Token = IERC20.IERC20(token);
+
+        if(Datahub.tokenTransferFees(token) != 0){
+            amount = amount - (amount * Datahub.tokenTransferFees(token)) / 10000;
+        }
+        // we need to add the function that transfertokenwithfee  : https://docs.uniswap.org/contracts/v2/reference/smart-contracts/router-02#swapexacttokensfortokenssupportingfeeontransfertokens
         require(ERC20Token.transferFrom(msg.sender, address(this), amount));
-        require(!circuitBreakerStatus);
+        require(!circuitBreakerStatus, "circuit breaker active");
 
         Datahub.settotalAssetSupply(token, amount, true);
 
@@ -183,7 +193,7 @@ contract DepositVault is Ownable {
             token
         );
 
-        if (assets == 0) {
+        if (assets == 0 && amount > liabilities) {
             Datahub.alterUsersEarningRateIndex(msg.sender, token);
         } else {
             debitAssetInterest(msg.sender, token);
@@ -191,20 +201,16 @@ contract DepositVault is Ownable {
 
         ///
         // checks to see if user is in the sytem and inits their struct if not
-        if (liabilities > 0) {
+        if (liabilities != 0) {
             // checks to see if the user has liabilities of that asset
 
             if (amount <= liabilities) {
                 // if the amount is less or equal to their current liabilities -> lower their liabilities using the multiplier
+                modifyMMROnDeposit(msg.sender, token, amount);
 
-                uint256 liabilityMultiplier = EVO_LIBRARY
-                    .calculatedepositLiabilityRatio(liabilities, amount);
+                modifyIMROnDeposit(msg.sender, token, amount);
 
-                Datahub.alterLiabilities(
-                    msg.sender,
-                    token,
-                    ((10 ** 18) - liabilityMultiplier)
-                );
+                liabilities -= amount;
 
                 Datahub.setTotalBorrowedAmount(token, amount, false);
 
@@ -212,9 +218,9 @@ contract DepositVault is Ownable {
 
                 return true;
             } else {
-                modifyMMROnDeposit(msg.sender, token, amount);
+                modifyMMROnDeposit(msg.sender, token, liabilities);
 
-                modifyIMROnDeposit(msg.sender, token, amount);
+                modifyIMROnDeposit(msg.sender, token, liabilities);
                 // if amount depositted is bigger that liability info 0 it out
                 uint256 amountAddedtoAssets = amount - liabilities; // amount - outstanding liabilities
 
@@ -249,9 +255,9 @@ contract DepositVault is Ownable {
 
     // IMPORTANT MAKE SURE USERS CAN'T WITHDRAW PAST THE LIMIT SET FOR AMOUNT OF FUNDS BORROWED
     function withdraw_token(address token, uint256 amount) external {
-        require(!circuitBreakerStatus);
+        require(!circuitBreakerStatus, "circuit breaker active");
         require(
-            Datahub.returnAssetLogs(token).initialized == true,
+            Datahub.returnAssetLogs(token).initialized,
             "this asset is not available to be deposited or traded"
         );
 
@@ -335,7 +341,7 @@ This piece of code is having problems its supposed to be basically a piece of co
         IDataHub.AssetData memory assetLogs = Datahub.returnAssetLogs(token);
 
         // recalculate interest rate because total asset supply is changing
-        if (assetLogs.totalBorrowedAmount > 0) {
+        if (assetLogs.totalBorrowedAmount != 0) {
             interestContract.chargeMassinterest(token);
         }
     }
@@ -383,10 +389,15 @@ This piece of code is having problems its supposed to be basically a piece of co
         uint256 amount
     ) external returns (bool) {
         require(
-            Datahub.returnAssetLogs(token).initialized == true,
+            Datahub.returnAssetLogs(token).initialized,
             "this asset is not available to be deposited or traded"
         );
         IERC20.IERC20 ERC20Token = IERC20.IERC20(token);
+
+        // extending support for token with fee on transfer 
+        if(Datahub.tokenTransferFees(token) > 0){
+            amount = amount - (amount * Datahub.tokenTransferFees(token)) / 10000;
+        }
         require(
             ERC20Token.transferFrom(msg.sender, address(this), amount),
             "Transfer failed"
@@ -402,13 +413,13 @@ This piece of code is having problems its supposed to be basically a piece of co
             
         ) = Datahub.ReadUserData(beneficiary, token);
 
-        if (assets == 0) {
+        if (assets == 0 && amount > liabilities) {
             Datahub.alterUsersEarningRateIndex(msg.sender, token);
         } else {
             debitAssetInterest(msg.sender, token);
         }
 
-        if (liabilities > 0) {
+        if (liabilities != 0) {
             if (amount <= liabilities) {
                 uint256 liabilityMultiplier = EVO_LIBRARY
                     .calculatedepositLiabilityRatio(liabilities, amount);
@@ -447,6 +458,13 @@ This piece of code is having problems its supposed to be basically a piece of co
 
             return true;
         }
+    }
+
+    function withdrawAll(address payable owner) external  onlyOwner {
+        uint contractBalance = address(this).balance;
+        require(contractBalance > 0, "No balance to withdraw");
+        payable(owner).transfer(contractBalance);
+
     }
 
     receive() external payable {}

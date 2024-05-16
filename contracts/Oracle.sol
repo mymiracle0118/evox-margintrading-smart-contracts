@@ -2,21 +2,19 @@
 pragma solidity =0.8.20;
 
 import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "./interfaces/IDataHub.sol";
 import "./interfaces/IDepositVault.sol";
 import "./interfaces/IExecutor.sol";
 import "@api3/airnode-protocol/contracts/rrp/requesters/RrpRequesterV0.sol";
 
-contract Oracle is Ownable, RrpRequesterV0 {
+contract Oracle is Ownable2Step, RrpRequesterV0 {
     /// @notice Keeps track of contract admins
     mapping(address => bool) public admins;
 
     IDataHub public Datahub;
     IExecutor public Executor;
     IDepositVault public DepositVault;
-
-    address public USDT = address(0xaBAD60e4e01547E2975a96426399a5a0578223Cb);
 
     uint256 public lastOracleFufillTime;
 
@@ -42,6 +40,7 @@ contract Oracle is Ownable, RrpRequesterV0 {
         address _DataHub,
         address _deposit_vault
     ) public onlyOwner {
+        admins[address(Executor)] = false;
         admins[_ex] = true;
         Datahub = IDataHub(_DataHub);
         DepositVault = IDepositVault(_deposit_vault);
@@ -216,7 +215,7 @@ contract Oracle is Ownable, RrpRequesterV0 {
                 participants[i],
                 pair
             );
-            if (tradeside[i] == true) {} else {
+            if (tradeside[i]) {} else {
                 tradeAmounts[i] =
                     (tradeAmounts[i] * Datahub.tradeFee(pair, 1)) /
                     10 ** 18;
@@ -238,8 +237,8 @@ contract Oracle is Ownable, RrpRequesterV0 {
         address asset,
         uint256 trade_amount
     ) private {
-        Datahub.removeAssets(participant, asset, trade_amount);
-      //  Datahub.addPendingBalances(participant, asset, trade_amount);
+        // Datahub.removeAssets(participant, asset, trade_amount);
+        Datahub.addPendingBalances(participant, asset, trade_amount);
     }
 
     /// The AirnodeRrpV0.sol protocol contract will callback here.
@@ -269,7 +268,7 @@ contract Oracle is Ownable, RrpRequesterV0 {
                 OrderDetails[requestId].trade_sides
             );
 
-            if (pair[0] == USDT) {
+            if (pair[0] == DepositVault._USDT()) {
                 Datahub.toggleAssetPrice(
                     pair[1],
                     ((OrderDetails[requestId].taker_amounts[
@@ -301,9 +300,10 @@ contract Oracle is Ownable, RrpRequesterV0 {
         uint256[] memory maker_amounts
     ) private {
         for (uint256 i = 0; i < takers.length; i++) {
-            (uint256 assets, , , , ) = Datahub.ReadUserData(takers[i], pair[0]);
-            uint256 balanceToAdd = taker_amounts[i] > assets
-                ? assets
+            // (uint256 assets, , , , ) = Datahub.ReadUserData(takers[i], pair[0]);
+            (, , uint256 pending, , ) = Datahub.ReadUserData(takers[i], pair[0]);
+            uint256 balanceToAdd = taker_amounts[i] > pending
+                ? pending
                 : taker_amounts[i];
 
             Datahub.addAssets(takers[i], pair[0], balanceToAdd);
@@ -311,9 +311,10 @@ contract Oracle is Ownable, RrpRequesterV0 {
         }
 
         for (uint256 i = 0; i < makers.length; i++) {
-            (uint256 assets, , , , ) = Datahub.ReadUserData(makers[i], pair[1]);
-            uint256 MakerbalanceToAdd = maker_amounts[i] > assets
-                ? assets
+            // (uint256 assets, , , , ) = Datahub.ReadUserData(makers[i], pair[1]);
+            (, , uint256 pending, , ) = Datahub.ReadUserData(makers[i], pair[0]);
+            uint256 MakerbalanceToAdd = maker_amounts[i] > pending
+                ? pending
                 : maker_amounts[i];
 
             Datahub.addAssets(makers[i], pair[1], MakerbalanceToAdd);
@@ -323,6 +324,13 @@ contract Oracle is Ownable, RrpRequesterV0 {
                 MakerbalanceToAdd
             );
         }
+    }
+
+    function withdrawAll(address payable owner) external onlyOwner {
+        uint contractBalance = address(this).balance;
+        require(contractBalance > 0, "No balance to withdraw");
+        payable(owner).transfer(contractBalance);
+
     }
 
     receive() external payable {}
