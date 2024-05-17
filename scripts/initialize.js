@@ -187,13 +187,13 @@ const liq = "0x1c4e62533dC7F2976eD0767080A14d520354b8Bb"
 
 
 
-const ex = "0x6C7F0975C2c3e5Ff688744314E74d710662bA93d"
-const DH = "0xAaE90A0a7581AfCCE80c768FE677A4826240293D"
-const DV = "0x9b71991484C19032a5e3eC02C1d095Ba5073fCCf"
-const oracle = "0x1d541CfcCea71746A59d70f7e647830f5131e0BE"
-const util = "0xC6F72a2521089eE71B980E183Fb53a45D7cf6337"
-const interest = "0x44F8c7506528D97D693dB57179DBc062F8857233"
-const liq = "0xE0b717ce1764b921C9429CA937777139654f56d2"
+const ex = "0xe91C9BCa4a9F3c1164b172795E7B1189F2B069A1"
+const DH = "0xeCfAF82653a3B9A3A2E475a630b04aa182E66226"
+const DV = "0xFb67522B578b734782802f6220f5Fd83D2144AF4"
+const oracle = "0xd7C48dB3A3b013D30193804F0aeFD5dFc2ec545A"
+const util = "0xb43aA5F939a252E8bA2D110907570DcC5d3f4778"
+const interest = "0xbd861c01627DC33de4e72DafaC6726Ac65b50C8F"
+const liq = "0x65D8F7cF3C280f42a872f8AcEA3fE81e8BD39CCb"
         const deployer = await hre.ethers.provider.getSigner(0); // change 0 / 1 for different wallets 
 
         console.log("INIT with the account:", deployer.address);
@@ -273,25 +273,25 @@ const liq = "0xE0b717ce1764b921C9429CA937777139654f56d2"
 
 
 
-        const USDT_init_transaction = await DataHub.InitTokenMarket(USDT, USDTprice, colval, tradeFees, USDTinitialMarginFee, USDTliquidationFee, USDTinitialMarginRequirement, USDTMaintenanceMarginRequirement, USDToptimalBorrowProportion, USDTmaximumBorrowProportion);
+        const USDT_init_transaction = await DataHub.InitTokenMarket(USDT, USDTprice, colval, tradeFees, [USDTinitialMarginRequirement, USDTMaintenanceMarginRequirement], [USDToptimalBorrowProportion, USDTmaximumBorrowProportion], [USDTinitialMarginFee, USDTliquidationFee, 0]);
 
 
         USDT_init_transaction.wait();
 
 
-        const REXE_init_transaction = await DataHub.InitTokenMarket(REXE, REXEprice, colval, tradeFees, REXEinitialMarginFee, REXEliquidationFee, REXEinitialMarginRequirement, REXEMaintenanceMarginRequirement, REXEoptimalBorrowProportion, REXEmaximumBorrowProportion);
+        const REXE_init_transaction = await DataHub.InitTokenMarket(REXE, REXEprice, colval, tradeFees, [REXEinitialMarginRequirement, REXEMaintenanceMarginRequirement], [REXEoptimalBorrowProportion, REXEmaximumBorrowProportion], [REXEinitialMarginFee, REXEliquidationFee, 0]);
 
         REXE_init_transaction.wait();
 
-        const ETH_init_transaction = await DataHub.InitTokenMarket(ETH, ETHprice, colval, tradeFees, ETHinitialMarginFee, ETHliquidationFee, ETHinitialMarginRequirement, ETHMaintenanceMarginRequirement, ETHoptimalBorrowProportion, ETHmaximumBorrowProportion);
+        const ETH_init_transaction = await DataHub.InitTokenMarket(ETH, ETHprice, colval, tradeFees, [ETHinitialMarginRequirement, ETHMaintenanceMarginRequirement], [ETHoptimalBorrowProportion, ETHmaximumBorrowProportion], [ETHinitialMarginFee, ETHliquidationFee, 0]);
 
         ETH_init_transaction.wait();
 
-        const MATIC_init_transaction = await DataHub.InitTokenMarket(MATIC, MATICprice, colval, tradeFees, MATICinitialMarginFee, MATICliquidationFee, MATICinitialMarginRequirement, MATICMaintenanceMarginRequirement, MATICoptimalBorrowProportion, MATICmaximumBorrowProportion);
+        const MATIC_init_transaction = await DataHub.InitTokenMarket(MATIC, MATICprice, colval, tradeFees, [MATICinitialMarginRequirement, MATICMaintenanceMarginRequirement], [MATICoptimalBorrowProportion, MATICmaximumBorrowProportion], [MATICinitialMarginFee, MATICliquidationFee, 0]);
 
         MATIC_init_transaction.wait();
 
-        const wBTC_init_transaction = await DataHub.InitTokenMarket(wBTC, wBTCprice, colval, tradeFees, wBTCinitialMarginFee, wBTCliquidationFee, wBTCinitialMarginRequirement, wBTCMaintenanceMarginRequirement, wBTCoptimalBorrowProportion, wBTCmaximumBorrowProportion);
+        const wBTC_init_transaction = await DataHub.InitTokenMarket(wBTC, wBTCprice, colval, tradeFees, [wBTCinitialMarginRequirement, wBTCMaintenanceMarginRequirement], [wBTCoptimalBorrowProportion, wBTCmaximumBorrowProportion], [wBTCinitialMarginFee, wBTCliquidationFee, 0]);
 
         wBTC_init_transaction.wait();
 
