@@ -119,8 +119,9 @@ contract DepositVault is Ownable2Step {
     function getTotalAssetSupplyValue(
         address token
     ) public view returns (uint256) {
-        uint256 totalValue = (Datahub.returnAssetLogs(token).assetPrice *
-            Datahub.returnAssetLogs(token).totalAssetSupply) / 10 ** 18;
+        IDataHub.AssetData memory assetLogs = Datahub.returnAssetLogs(token);
+
+        uint256 totalValue = (assetLogs.assetPrice * assetLogs.assetInfo[0]) / 10 ** 18; // 0 -> totalSupply
 
         return totalValue;
     }
@@ -135,12 +136,13 @@ contract DepositVault is Ownable2Step {
         uint256 amount
     ) private {
         address[] memory tokens = Datahub.returnUsersAssetTokens(user);
+        uint256 liabilityMultiplier;
         (, uint256 liabilities, , , ) = Datahub.ReadUserData(
             msg.sender,
             in_token
         );
         for (uint256 i = 0; i < tokens.length; i++) {
-            uint256 liabilityMultiplier = EVO_LIBRARY
+            liabilityMultiplier = EVO_LIBRARY
                 .calculatedepositLiabilityRatio(liabilities, amount);
             Datahub.alterMMR(user, in_token, tokens[i], liabilityMultiplier);
         }
@@ -156,12 +158,13 @@ contract DepositVault is Ownable2Step {
         uint256 amount
     ) private {
         address[] memory tokens = Datahub.returnUsersAssetTokens(user);
+        uint256 liabilityMultiplier;
         (, uint256 liabilities, , , ) = Datahub.ReadUserData(
             msg.sender,
             in_token
         );
         for (uint256 i = 0; i < tokens.length; i++) {
-            uint256 liabilityMultiplier = EVO_LIBRARY
+            liabilityMultiplier = EVO_LIBRARY
                 .calculatedepositLiabilityRatio(liabilities, amount);
             Datahub.alterIMR(user, in_token, tokens[i], liabilityMultiplier);
         }
@@ -181,16 +184,12 @@ contract DepositVault is Ownable2Step {
             Datahub.returnAssetLogs(token).initialized,
             "this asset is not available to be deposited or traded"
         );
-        IERC20.IERC20 ERC20Token = IERC20.IERC20(token);
-
-        if(Datahub.tokenTransferFees(token) != 0){
-            amount = amount - (amount * Datahub.tokenTransferFees(token)) / 10000;
-        }
+        amount = amount - (amount * Datahub.tokenTransferFees(token)) / 10000;
         // we need to add the function that transfertokenwithfee  : https://docs.uniswap.org/contracts/v2/reference/smart-contracts/router-02#swapexacttokensfortokenssupportingfeeontransfertokens
-        require(ERC20Token.transferFrom(msg.sender, address(this), amount));
+        require(IERC20.IERC20(token).transferFrom(msg.sender, address(this), amount));
         require(!circuitBreakerStatus, "circuit breaker active");
 
-        Datahub.settotalAssetSupply(token, amount, true);
+        Datahub.setAssetInfo(0, token, amount, true); // 0 -> totalSupply
 
         (uint256 assets, uint256 liabilities, , , ) = Datahub.ReadUserData(
             msg.sender,
@@ -226,9 +225,7 @@ contract DepositVault is Ownable2Step {
 
                 modifyIMROnDeposit(msg.sender, token, liabilities);
                 // if amount depositted is bigger that liability info 0 it out
-                uint256 amountAddedtoAssets = amount - liabilities; // amount - outstanding liabilities
-
-                Datahub.addAssets(msg.sender, token, amountAddedtoAssets); // add to assets
+                Datahub.addAssets(msg.sender, token, amount - liabilities); // add to assets
 
                 Datahub.removeLiabilities(msg.sender, token, liabilities); // remove all liabilities
 
@@ -281,9 +278,12 @@ contract DepositVault is Ownable2Step {
             "You cannot withdraw more than your asset balance"
         );
 
+        IDataHub.AssetData memory assetLogs = Datahub.returnAssetLogs(token);
+        // 0 -> totalAssetSupply, 1 -> totalBorrowedAmount
+
         require(
-            amount + Datahub.returnAssetLogs(token).totalBorrowedAmount <=
-                Datahub.returnAssetLogs(token).totalAssetSupply,
+            amount + assetLogs.assetInfo[1] <=
+                assetLogs.assetInfo[0],
             "You cannot withdraw this amount as it would exceed the maximum borrow proportion"
         );
 /*
@@ -313,11 +313,8 @@ This piece of code is having problems its supposed to be basically a piece of co
             token_withdraws_hour[token] = 0;
         }
 */
-        IDataHub.AssetData memory assetInformation = Datahub.returnAssetLogs(
-            token
-        );
 
-        uint256 AssetPriceCalulation = (assetInformation.assetPrice * amount) /
+        uint256 AssetPriceCalulation = (assetLogs.assetPrice * amount) /
             10 ** 18; // this is 10*18 dnominated price of asset amount
 
         uint256 usersAMMR = Datahub.calculateAMMRForUser(msg.sender);
@@ -340,47 +337,45 @@ This piece of code is having problems its supposed to be basically a piece of co
         IERC20.IERC20 ERC20Token = IERC20.IERC20(token);
         ERC20Token.transfer(msg.sender, amount);
 
-        Datahub.settotalAssetSupply(token, amount, false);
-
-        IDataHub.AssetData memory assetLogs = Datahub.returnAssetLogs(token);
+        Datahub.setAssetInfo(0, token, amount, false); // 0 -> totalSupply
 
         // recalculate interest rate because total asset supply is changing
-        if (assetLogs.totalBorrowedAmount != 0) {
+        if (assetLogs.assetInfo[1] != 0) {
             interestContract.chargeMassinterest(token);
         }
     }
     function debitAssetInterest(address user, address token) private {
         (uint256 assets, , , , ) = Datahub.ReadUserData(user, token);
 
-        uint256 cumulativeinterest = interestContract
-            .calculateAverageCumulativeDepositInterest(
-                Datahub.viewUsersEarningRateIndex(user, token),
-                interestContract.fetchCurrentRateIndex(token),
-                token
-            );
+        uint256 currentRateIndex = interestContract.fetchCurrentRateIndex(token);
+        uint256 usersEarningRateIndex = Datahub.viewUsersEarningRateIndex(user, token);
+        address orderBookProvider = Executor.fetchOrderBookProvider();
+        address daoWallet = Executor.fetchDaoWallet();
+
+        uint256 averageCumulativeDepositInterest = interestContract.calculateAverageCumulativeDepositInterest(
+            usersEarningRateIndex,
+            currentRateIndex,
+            token
+        );
 
         (
             uint256 interestCharge,
             uint256 OrderBookProviderCharge,
             uint256 DaoInterestCharge
         ) = EVO_LIBRARY.calculateCompoundedAssets(
-                interestContract.fetchCurrentRateIndex(token),
-                (cumulativeinterest / 10 ** 18),
+                currentReateIndex,
+                averageCumulativeDepositInterest,
                 assets,
-                Datahub.viewUsersEarningRateIndex(user, token)
+                usersEarningRateIndex
             );
 
         Datahub.alterUsersEarningRateIndex(user, token);
 
         Datahub.addAssets(user, token, (interestCharge / 10 ** 18));
-        Datahub.addAssets(
-            Executor.fetchDaoWallet(),
-            token,
-            (DaoInterestCharge / 10 ** 18)
-        );
+        Datahub.addAssets(daoWallet, token, DaoInterestCharge);
 
         Datahub.addAssets(
-            Executor.fetchOrderBookProvider(),
+            orderBookProvider,
             token,
             (OrderBookProviderCharge / 10 ** 18)
         );
@@ -399,15 +394,14 @@ This piece of code is having problems its supposed to be basically a piece of co
         IERC20.IERC20 ERC20Token = IERC20.IERC20(token);
 
         // extending support for token with fee on transfer 
-        if(Datahub.tokenTransferFees(token) > 0){
-            amount = amount - (amount * Datahub.tokenTransferFees(token)) / 10000;
-        }
+        amount = amount - (amount * Datahub.tokenTransferFees(token)) / 10000;
+
         require(
             ERC20Token.transferFrom(msg.sender, address(this), amount),
             "Transfer failed"
         );
 
-        Datahub.settotalAssetSupply(token, amount, true);
+        Datahub.setAssetInfo(0, token, amount, true); // 0 -> totalSupply
 
         (
             uint256 assets,
@@ -418,9 +412,9 @@ This piece of code is having problems its supposed to be basically a piece of co
         ) = Datahub.ReadUserData(beneficiary, token);
 
         if (assets == 0 && amount > liabilities) {
-            Datahub.alterUsersEarningRateIndex(msg.sender, token);
+            Datahub.alterUsersEarningRateIndex(beneficiary, token);
         } else {
-            debitAssetInterest(msg.sender, token);
+            debitAssetInterest(beneficiary, token);
         }
 
         if (liabilities != 0) {
@@ -434,7 +428,7 @@ This piece of code is having problems its supposed to be basically a piece of co
                     ((10 ** 18) - liabilityMultiplier)
                 );
 
-                Datahub.setTotalBorrowedAmount(token, amount, false);
+                Datahub.setAssetInfo(1, token, liabilities, false); // 1 -> totalBorrowedAmount
 
                 interestContract.chargeMassinterest(token);
 
@@ -446,7 +440,7 @@ This piece of code is having problems its supposed to be basically a piece of co
 
                 Datahub.addAssets(beneficiary, token, amountAddedtoAssets);
                 Datahub.removeLiabilities(beneficiary, token, liabilities);
-                Datahub.setTotalBorrowedAmount(token, liabilities, false);
+                Datahub.setAssetInfo(1, token, amount, false); // 1 -> totalBorrowedAmount
 
                 Datahub.changeMarginStatus(beneficiary);
                 interestContract.chargeMassinterest(token);

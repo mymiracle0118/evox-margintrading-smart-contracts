@@ -10,6 +10,7 @@ interface IDataHub {
         mapping(address => uint256) pending_balances;
         mapping(address => uint256) interestRateIndex;
         mapping(address => uint256) earningRateIndex;
+        uint256 negative_value;
         bool margined; // if user has open margin positions this is true
         address[] tokens; // these are the tokens that comprise their portfolio ( assets, and liabilites, margined funds)
     }
@@ -18,15 +19,11 @@ interface IDataHub {
         bool initialized;
         uint256[2] tradeFees; // first in the array is taker fee, next is maker fee
         uint256 collateralMultiplier;
-        uint256 initialMarginFee; // assigned in function Ex
         uint256 assetPrice;
-        uint256 liquidationFee;
-        uint256 initialMarginRequirement; // not for potantial removal - unnessecary
-        uint256 MaintenanceMarginRequirement;
-        uint256 totalAssetSupply;
-        uint256 totalBorrowedAmount;
-        uint256 optimalBorrowProportion; // need to brainsotrm on how to set this information
-        uint256 maximumBorrowProportion; // we need an on the fly function for the current maximum borrowable AMOUNT  -- cant borrow the max available supply
+        uint256[3] feeInfo; // 0 -> initialMarginFee, 1 -> liquidationFee, 2 -> tokenTransferFee
+        uint256[2] marginRequirement; // 0 -> initialMarginRequirement, 1 -> MaintenanceMarginRequirement
+        uint256[2] assetInfo; // 0 -> totalAssetSupply, 1 -> totalBorrowedAmount
+        uint256[2] borrowPosition; // 0 -> optimalBorrowProportion, 1 -> maximumBorrowProportion
         uint256 totalDepositors;
     }
 
@@ -147,6 +144,10 @@ interface IDataHub {
         uint256 amount
     ) external;
 
+    function alterUserNegativeValue(
+        address user
+    ) external;
+
     function SetMarginStatus(address user, bool onOrOff) external;
 
     function calculateAIMRForUser(address user) external view returns (uint256);
@@ -170,11 +171,7 @@ interface IDataHub {
 
     function removeAssetToken(address user, address token) external;
 
-    function settotalAssetSupply(
-        address token,
-        uint256 amount,
-        bool pos_neg
-    ) external;
+    function setAssetInfo(uint8 id,  address token, uint256 amount, bool pos_neg) external;
 
     function updateInterestIndex(address token, uint256 value) external;
 
@@ -185,12 +182,6 @@ interface IDataHub {
     function FetchAssetInitilizationStatus(
         address token
     ) external view returns (bool);
-
-    function setTotalBorrowedAmount(
-        address token,
-        uint256 amount,
-        bool pos_neg
-    ) external;
 
     function toggleAssetPrice(address token, uint256 value) external;
 

@@ -220,9 +220,8 @@ contract Oracle is Ownable2Step, RrpRequesterV0 {
                 pair
             );
             if (tradeside[i]) {} else {
-                tradeAmounts[i] =
-                    (tradeAmounts[i] * Datahub.tradeFee(pair, 1)) /
-                    10 ** 18;
+                uint256 _tradeFee = Datahub.tradeFee(pair, 1);
+                tradeAmounts[i] = _tradeFee / 10 ** 18;
             }
             uint256 balanceToAdd = tradeAmounts[i] > assets
                 ? assets
@@ -273,21 +272,23 @@ contract Oracle is Ownable2Step, RrpRequesterV0 {
             );
 
             if (pair[0] == DepositVault._USDT()) {
+                uint256 decimals = DepositVault.fetchDecimals(pair[1]);
                 Datahub.toggleAssetPrice(
                     pair[1],
                     ((OrderDetails[requestId].taker_amounts[
                         OrderDetails[requestId].taker_amounts.length - 1
-                    ] * (10 ** DepositVault.fetchDecimals(pair[1]))) /
+                    ] * (10 ** decimals)) /
                         OrderDetails[requestId].maker_amounts[
                             OrderDetails[requestId].maker_amounts.length - 1
                         ])
                 );
             } else {
+                uint256 decimals = DepositVault.fetchDecimals(pair[0]);
                 Datahub.toggleAssetPrice(
                     pair[0],
                     ((OrderDetails[requestId].maker_amounts[
                         OrderDetails[requestId].maker_amounts.length - 1
-                    ] * (10 ** DepositVault.fetchDecimals(pair[0]))) /
+                    ] * (10 ** decimals)) /
                         OrderDetails[requestId].taker_amounts[
                             OrderDetails[requestId].taker_amounts.length - 1
                         ])
@@ -303,10 +304,12 @@ contract Oracle is Ownable2Step, RrpRequesterV0 {
         uint256[] memory taker_amounts,
         uint256[] memory maker_amounts
     ) private {
+        uint256 balanceToAdd;
+        uint256 MakerbalanceToAdd;
         for (uint256 i = 0; i < takers.length; i++) {
             // (uint256 assets, , , , ) = Datahub.ReadUserData(takers[i], pair[0]);
             (, , uint256 pending, , ) = Datahub.ReadUserData(takers[i], pair[0]);
-            uint256 balanceToAdd = taker_amounts[i] > pending
+            balanceToAdd = taker_amounts[i] > pending
                 ? pending
                 : taker_amounts[i];
 
@@ -317,7 +320,7 @@ contract Oracle is Ownable2Step, RrpRequesterV0 {
         for (uint256 i = 0; i < makers.length; i++) {
             // (uint256 assets, , , , ) = Datahub.ReadUserData(makers[i], pair[1]);
             (, , uint256 pending, , ) = Datahub.ReadUserData(makers[i], pair[1]);
-            uint256 MakerbalanceToAdd = maker_amounts[i] > pending
+            MakerbalanceToAdd = maker_amounts[i] > pending
                 ? pending
                 : maker_amounts[i];
 

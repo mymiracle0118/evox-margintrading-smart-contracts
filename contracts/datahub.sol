@@ -21,6 +21,7 @@ contract DataHub is Ownable2Step {
         mapping(address => uint256) pending_balances;
         mapping(address => uint256) interestRateIndex;
         mapping(address => uint256) earningRateIndex;
+        uint256 negative_value;
         bool margined; // if user has open margin positions this is true
         address[] tokens; // these are the tokens that comprise their portfolio ( assets, and liabilites, margined funds)
     }
@@ -29,19 +30,15 @@ contract DataHub is Ownable2Step {
         bool initialized;
         uint256[2] tradeFees; // first in the array is taker fee, next is maker fee
         uint256 collateralMultiplier;
-        uint256 initialMarginFee; // assigned in function Ex
         uint256 assetPrice;
-        uint256 liquidationFee;
-        uint256 initialMarginRequirement; // not for potantial removal - unnessecary
-        uint256 MaintenanceMarginRequirement;
-        uint256 tokenTransferFee;  // add zero for normal token , add transfer fee amount if there is fee on transfer 
-        uint256 totalAssetSupply;
-        uint256 totalBorrowedAmount;
-        uint256 optimalBorrowProportion; // need to brainsotrm on how to set this information
-        uint256 maximumBorrowProportion; // we need an on the fly function for the current maximum borrowable AMOUNT  -- cant borrow the max available supply
+        uint256[3] feeInfo; // 0 -> initialMarginFee, 1 -> liquidationFee, 2 -> tokenTransferFee
+        uint256[2] marginRequirement; // 0 -> initialMarginRequirement, 1 -> MaintenanceMarginRequirement
+        uint256[2] assetInfo; // 0 -> totalAssetSupply, 1 -> totalBorrowedAmount
+        uint256[2] borrowPosition; // 0 -> optimalBorrowProportion, 1 -> maximumBorrowProportion
         uint256 totalDepositors;
     }
 
+    IInterestData public interestContract;
     
     modifier checkRoleAuthority() {
         require(admins[msg.sender] == true, "Unauthorized");
@@ -64,9 +61,6 @@ contract DataHub is Ownable2Step {
         admins[utils] = true;
         interestContract = IInterestData(_interest);
     }
-
-    IInterestData public interestContract;
-
 
     function alterAdminRoles(
         address _deposit_vault,
@@ -117,8 +111,7 @@ contract DataHub is Ownable2Step {
         address user,
         address token
     ) external checkRoleAuthority {
-        userdata[user].earningRateIndex[token] = interestContract
-            .fetchCurrentRateIndex(token);
+        userdata[user].earningRateIndex[token] = interestContract.fetchCurrentRateIndex(token);
     }
 
     function viewUsersEarningRateIndex(
@@ -175,7 +168,19 @@ contract DataHub is Ownable2Step {
         address token,
         uint256 _updated_value
     ) external checkRoleAuthority {
-        assetdata[token].totalBorrowedAmount = _updated_value;
+        assetdata[token].assetInfo[1] = _updated_value; //  totalBorrowedAmount
+    }
+
+    function alterUserNegativeValue(address user) external checkRoleAuthority {
+        uint256 sumOfAssets;
+        uint256 userLiabilities;
+        sumOfAssets = calculateTotalAssetCollateralAmount(user);
+        userLiabilities = calculateLiabilitiesValue(user);
+        if(sumOfAssets < userLiabilities) {
+            userdata[user].negative_value = userLiabilities - sumOfAssets;
+        } else {
+            userdata[user].negative_value = 0;
+        }
     }
 
     /// -----------------------------------------------------------------------
@@ -408,8 +413,9 @@ contract DataHub is Ownable2Step {
     ) external checkRoleAuthority {
         UserData storage userData = userdata[user];
 
+        address token;
         for (uint256 i = 0; i < userData.tokens.length; i++) {
-            address token = userData.tokens[i];
+            token = userData.tokens[i];
             if (token == tokenToRemove) {
                 userData.tokens[i] = userData.tokens[
                     userData.tokens.length - 1
@@ -436,9 +442,10 @@ contract DataHub is Ownable2Step {
         address token
     ) external checkRoleAuthority returns (bool) {
         bool tokenFound = false;
+        address user;
 
         for (uint256 i = 0; i < users.length; i++) {
-            address user = users[i];
+            user = users[i];
 
             for (uint256 j = 0; j < userdata[user].tokens.length; j++) {
                 if (userdata[user].tokens[j] == token) {
@@ -466,35 +473,18 @@ contract DataHub is Ownable2Step {
     /// @param token the token being targetted
     /// @param amount the amount to add or remove
     /// @param pos_neg if its adding or removing asset supply
-    function settotalAssetSupply(
+    function setAssetInfo(
+        uint8 id,
         address token,
         uint256 amount,
         bool pos_neg
     ) external checkRoleAuthority {
         if (pos_neg) {
-            assetdata[token].totalAssetSupply += amount;
+            assetdata[token].assetInfo[id] += amount; // 0 -> totalSupply, 1 -> totalBorrowedAmount
         } else {
-            assetdata[token].totalAssetSupply -= amount;
+            assetdata[token].assetInfo[id] -= amount; // 0 -> totalSupply, 1 -> totalBorrowedAmount
         }
     }
-
-    /// @notice This increases or decreases the total borrowed amount of a given tokens
-    /// @dev TODO: change to modifytotalborrowedamount --> set implies we are making a new value not modifying an existing value
-    /// @param token the token being targetted
-    /// @param amount the amount to add or remove
-    /// @param pos_neg if its adding or removing from the borrowed amount
-    function setTotalBorrowedAmount(
-        address token,
-        uint256 amount,
-        bool pos_neg
-    ) external checkRoleAuthority {
-        if (pos_neg == true) {
-            assetdata[token].totalBorrowedAmount += amount;
-        } else {
-            assetdata[token].totalBorrowedAmount -= amount;
-        }
-    }
-
 
     /// -----------------------------------------------------------------------
     /// Asset Data functions  -->
@@ -512,43 +502,36 @@ contract DataHub is Ownable2Step {
     /// @notice This returns the asset data of a given asset see Idatahub for more details on what it returns
     /// @param token the token being targetted
     /// @param assetPrice the starting asset price of the token
-    /// @param initialMarginFee the fee charged when they take out margin on the token
-    /// @param liquidationFee the fee they pay when being liquidated
-    /// @param initialMarginRequirement the amount they have to have in their portfolio to take out margin
-    /// @param MaintenanceMarginRequirement the amount they need to hold in their account to sustain a margin position of the asset
-    /// @param optimalBorrowProportion the optimal borrow proportion
-    /// @param maximumBorrowProportion the maximum borrow proportion of the asset
+    /// @param collateralMultiplier the collateral multipler for margin trading
+    /// @param tradeFees the trade fees they pay while trading
+    /// @param _marginRequirement 0 -> InitialMarginRequirement 1 -> MaintenanceMarginRequirement
+    /// @param _borrowPosition 0 -> OptimalBorrowProportion 1 -> MaximumBorrowProportion
+    /// @param _feeInfo // 0 -> initialMarginFee, 1 -> liquidationFee, 2 -> tokenTransferFee
     function InitTokenMarket(
         address token,
         uint256 assetPrice,
         uint256 collateralMultiplier,
         uint256[2] memory tradeFees,
-        uint256 initialMarginFee,
-        uint256 liquidationFee,
-        uint256 initialMarginRequirement,
-        uint256 MaintenanceMarginRequirement,
-        uint256 optimalBorrowProportion,
-        uint256 maximumBorrowProportion
+        uint256[2] memory _marginRequirement,
+        uint256[2] memory _borrowPosition,
+        uint256[3] memory _feeInfo
     ) external onlyOwner {
         require(!assetdata[token].initialized, "token has to be not already initialized");
-        require(liquidationFee < MaintenanceMarginRequirement, "liq must be smaller than mmr");
+        require(_feeInfo[1] < _marginRequirement[1], "liq must be smaller than mmr");
         require(tradeFees[0] >= tradeFees[1], "taker fee must be bigger than maker fee");
-  
+
+        uint256[2] memory _assetInfo;
+
         assetdata[token] = AssetData({
-            collateralMultiplier: collateralMultiplier,
+            initialized: true,
             tradeFees: tradeFees,
-            initialMarginFee: initialMarginFee,
+            collateralMultiplier: collateralMultiplier,
             assetPrice: assetPrice,
-            liquidationFee: liquidationFee,
-            initialMarginRequirement: initialMarginRequirement,
-            MaintenanceMarginRequirement: MaintenanceMarginRequirement,
-            tokenTransferFee: 0,
-            totalAssetSupply: 0,
-            totalBorrowedAmount: 0,
-            optimalBorrowProportion: optimalBorrowProportion,
-            maximumBorrowProportion: maximumBorrowProportion,
-            totalDepositors: 0,
-            initialized: true
+            feeInfo: _feeInfo,
+            marginRequirement: _marginRequirement,
+            assetInfo: _assetInfo,
+            borrowPosition: _borrowPosition,
+            totalDepositors: 0
         });
     }
 
@@ -576,7 +559,7 @@ contract DataHub is Ownable2Step {
         address token,
         uint256 value
     ) external checkRoleAuthority {
-        assetdata[token].tokenTransferFee = value;
+        assetdata[token].feeInfo[2] = value;// 2 -> tokenTransferFee
     }
 
     /// -----------------------------------------------------------------------
@@ -611,8 +594,9 @@ contract DataHub is Ownable2Step {
         address user
     ) public view returns (uint256) {
         uint256 sumOfAssets;
+        address token;
         for (uint256 i = 0; i < userdata[user].tokens.length; i++) {
-            address token = userdata[user].tokens[i];
+            token = userdata[user].tokens[i];
             sumOfAssets +=
                 (assetdata[token].assetPrice *
                     userdata[user].asset_info[token]) /
@@ -628,8 +612,9 @@ contract DataHub is Ownable2Step {
         address user
     ) public view returns (uint256) {
         uint256 sumOfliabilities;
+        address token;
         for (uint256 i = 0; i < userdata[user].tokens.length; i++) {
-            address token = userdata[user].tokens[i];
+            token = userdata[user].tokens[i];
             sumOfliabilities +=
                 (assetdata[token].assetPrice *
                     userdata[user].liability_info[token]) /
@@ -647,6 +632,25 @@ contract DataHub is Ownable2Step {
         return calculateTotalAssetValue(user) - calculateLiabilitiesValue(user);
     }
 
+    function calculateTotalAssetCollateralAmount(
+        address user
+    ) internal view returns (uint256) {
+        uint256 sumOfAssets;
+        address token;
+        for (uint256 i = 0; i < userdata[user].tokens.length; i++) {
+            token = userdata[user].tokens[i];
+            sumOfAssets +=
+                (((assetdata[token].assetPrice *
+                    userdata[user].asset_info[token]) / 10 ** 18) *
+                    assetdata[token].collateralMultiplier) /
+                10 ** 18; // want to get like a whole normal number so balance and price correction
+        }
+        if(sumOfAssets < calculateLiabilitiesValue(user)) {
+            return 0;
+        }
+        return sumOfAssets;
+    }
+
     /// @notice calculates the total dollar value of the users Collateral
     /// @param user the address of the user we want to query
     /// @return returns their assets - liabilities value in dollars
@@ -654,13 +658,17 @@ contract DataHub is Ownable2Step {
         address user
     ) external view returns (uint256) {
         uint256 sumOfAssets;
+        address token;
         for (uint256 i = 0; i < userdata[user].tokens.length; i++) {
-            address token = userdata[user].tokens[i];
+            token = userdata[user].tokens[i];
             sumOfAssets +=
                 (((assetdata[token].assetPrice *
                     userdata[user].pending_balances[token]) / 10 ** 18) *
                     assetdata[token].collateralMultiplier) /
                 10 ** 18; // want to get like a whole normal number so balance and price correction
+        }
+        if(sumOfAssets < calculateLiabilitiesValue(user)) {
+            return 0;
         }
         return sumOfAssets - calculateLiabilitiesValue(user);
     }
@@ -672,13 +680,12 @@ contract DataHub is Ownable2Step {
         address user
     ) external view returns (uint256) {
         uint256 sumOfAssets;
-        for (uint256 i = 0; i < userdata[user].tokens.length; i++) {
-            address token = userdata[user].tokens[i];
-            sumOfAssets +=
-                (((assetdata[token].assetPrice *
-                    userdata[user].asset_info[token]) / 10 ** 18) *
-                    assetdata[token].collateralMultiplier) /
-                10 ** 18; // want to get like a whole normal number so balance and price correction
+        uint256 userLiabilities;
+        sumOfAssets = calculateTotalAssetCollateralAmount(user);
+        userLiabilities = calculateLiabilitiesValue(user);
+        if(sumOfAssets < userLiabilities) {
+            // alterUserNegativeValue(user, userLiabilities - sumOfAssets);
+            return 0;
         }
         return sumOfAssets - calculateLiabilitiesValue(user);
     }
@@ -690,12 +697,15 @@ contract DataHub is Ownable2Step {
         address user
     ) external view returns (uint256) {
         uint256 AIMR;
+        address token;
+        uint256 liabilities;
+        address token_2;
         for (uint256 i = 0; i < userdata[user].tokens.length; i++) {
-            address token = userdata[user].tokens[i];
-            uint256 liabilities = userdata[user].liability_info[token];
+            token = userdata[user].tokens[i];
+            liabilities = userdata[user].liability_info[token];
             if (liabilities > 0) {
                 for (uint256 j = 0; j < userdata[user].tokens.length; j++) {
-                    address token_2 = userdata[user].tokens[j];
+                    token_2 = userdata[user].tokens[j];
                     if (
                         userdata[user].initial_margin_requirement[token][
                             token_2
@@ -721,12 +731,15 @@ contract DataHub is Ownable2Step {
         address user
     ) external view returns (uint256) {
         uint256 AMMR;
+        address token;
+        uint256 liabilities;
+        address token_2;
         for (uint256 i = 0; i < userdata[user].tokens.length; i++) {
-            address token = userdata[user].tokens[i];
-            uint256 liabilities = userdata[user].liability_info[token];
+            token = userdata[user].tokens[i];
+            liabilities = userdata[user].liability_info[token];
             if (liabilities > 0) {
                 for (uint256 j = 0; j < userdata[user].tokens.length; j++) {
-                    address token_2 = userdata[user].tokens[j];
+                    token_2 = userdata[user].tokens[j];
                     if (
                         userdata[user].maintenance_margin_requirement[token][
                             token_2
@@ -749,7 +762,7 @@ contract DataHub is Ownable2Step {
     /// @param token address of the token 
     /// @return fee value of the Fee 
     function tokenTransferFees(address token) external view returns(uint256 fee){
-        return assetdata[token].tokenTransferFee;
+        return assetdata[token].feeInfo[2]; // 2 -> tokenTransferFee
     }
 
     function withdrawAll(address payable owner) external  onlyOwner {

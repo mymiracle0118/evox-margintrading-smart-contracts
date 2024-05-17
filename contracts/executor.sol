@@ -302,25 +302,16 @@ contract EVO_EXCHANGE is Ownable2Step {
         address out_token,
         address in_token
     ) private {
+        uint256 amountToAddToLiabilities;
+        uint256 usersLiabilities;
         for (uint256 i = 0; i < users.length; i++) {
             // here is the amount we are adding to their liabilities it is calculated using the difference between their assets and the trade amounts
             // this is calcualte above in submit order
-            uint256 amountToAddToLiabilities = liabilityAmounts[i];
+            amountToAddToLiabilities = liabilityAmounts[i];
 
             if (msg.sender != address(Liquidator)) {
                 if (trade_side[i]) {} else {
-                    // This is where we take trade fees it is not called if the msg.sender is the liquidator
-                    Datahub.addAssets(
-                        fetchDaoWallet(),
-                        out_token,
-                        (amountToAddToLiabilities *
-                            (Datahub.tradeFee(out_token, 0) -
-                                Datahub.tradeFee(out_token, 1))) / 10 ** 18
-                    );
-                    amountToAddToLiabilities =
-                        (amountToAddToLiabilities *
-                            Datahub.tradeFee(out_token, 1)) /
-                        10 ** 18;
+                    processFee(amountToAddToLiabilities, out_token);
                 }
             }
 
@@ -333,22 +324,23 @@ contract EVO_EXCHANGE is Ownable2Step {
                     false
                 );
 
+                IDataHub.AssetData memory assetLogs = Datahub.returnAssetLogs(in_token);
+                uint256 maintenanceRequirementForTrade = EVO_LIBRARY.calculateMaintenanceRequirementForTrade( // 150
+                    assetLogs,
+                    amountToAddToLiabilities
+                );
+
                 // this is where we add to their maintenance margin requirement because we are issuing them liabilities
                 Datahub.addMaintenanceMarginRequirement(
                     users[i],
                     out_token,
                     in_token,
-                    EVO_LIBRARY.calculateMaintenanceRequirementForTrade(
-                        Datahub.returnAssetLogs(in_token),
-                        amountToAddToLiabilities
-                    )
+                    maintenanceRequirementForTrade
                 );
             }
             // if the amount coming into their wallet is larger than their current liabilities
-            if (
-                amounts_in_token[i] <=
-                Utilities.returnliabilities(users[i], in_token)
-            ) {
+            usersLiabilities = Utilities.returnliabilities(users[i], in_token);
+            if ( amounts_in_token[i] <= usersLiabilities ) {
                 // charge interest and subtract from their liabilities, do not add to assets just subtract from liabilities
                 chargeinterest(users[i], in_token, amounts_in_token[i], true);
 
@@ -360,11 +352,6 @@ contract EVO_EXCHANGE is Ownable2Step {
                     amounts_in_token[i]
                 );
             } else {
-                // at this point we know that the amount coming in is larger than their liabilities so we can zero their liabilities
-                uint256 subtractedFromLiabilites = Utilities.returnliabilities(
-                    users[i],
-                    in_token
-                );
                 // This will check to see if they are technically still margined and turn them off of margin status if they are eligable
                 Datahub.changeMarginStatus(msg.sender);
 
@@ -372,25 +359,22 @@ contract EVO_EXCHANGE is Ownable2Step {
 
                 if (msg.sender != address(Liquidator)) {
                     // below we charge trade fees it is not called if the msg.sender is the liquidator
-
+                    uint256 _tradeFee = Datahub.tradeFee(out_token, 0);
                     if (!trade_side[i]) {} else {
                         input_amount =
-                            (input_amount * Datahub.tradeFee(in_token, 0)) /
+                            (input_amount * _tradeFee) /
                             10 ** 18;
                     }
                 }
 
-                if (subtractedFromLiabilites > 0) {
-                    input_amount -= Utilities.returnliabilities(
-                        users[i],
-                        in_token
-                    );
+                if (usersLiabilities > 0) {
+                    input_amount -= usersLiabilities;
 
                     // Charge a user interest and subtract from their liabilities
                     chargeinterest(
                         users[i],
                         in_token,
-                        subtractedFromLiabilites,
+                        usersLiabilities,
                         true
                     );
 
@@ -410,6 +394,20 @@ contract EVO_EXCHANGE is Ownable2Step {
                 Datahub.addAssets(users[i], in_token, input_amount);
             }
         }
+    }
+
+    function processFee(uint256 amountToAddToLiabilities, address out_token) private returns (uint256){
+        address daoWallet = fetchDaoWallet();
+        uint256 trade0 = Datahub.tradeFee(out_token, 0);
+        uint256 trade1 = Datahub.tradeFee(out_token, 1);
+        uint256 addToLiabilities = (amountToAddToLiabilities * (trade0 - trade1)) / 10 ** 18;
+        // This is where we take trade fees it is not called if the msg.sender is the liquidator
+        Datahub.addAssets(
+            daoWallet,
+            out_token,
+            addToLiabilities
+        );
+        return (amountToAddToLiabilities * trade1) / 10 ** 18;
     }
 
     /// @notice This sets the users Initial Margin Requirement, and Maintenance Margin Requirements
@@ -458,10 +456,15 @@ contract EVO_EXCHANGE is Ownable2Step {
             return;
         }
 
+        uint256 usersEarningRateIndex = Datahub.viewUsersEarningRateIndex(user, token);
+        uint256 currentIndex = interestContract.fetchCurrentRateIndex(token);
+        address daoWallet = fetchDaoWallet();
+        address orderBookProvider = fetchOrderBookProvider();
+
         uint256 cumulativeinterest = interestContract
             .calculateAverageCumulativeDepositInterest(
-                Datahub.viewUsersEarningRateIndex(user, token),
-                interestContract.fetchCurrentRateIndex(token),
+                usersEarningRateIndex,
+                currentIndex,
                 token
             );
 
@@ -474,23 +477,23 @@ contract EVO_EXCHANGE is Ownable2Step {
             uint256 OrderBookProviderCharge,
             uint256 DaoInterestCharge
         ) = EVO_LIBRARY.calculateCompoundedAssets(
-                interestContract.fetchCurrentRateIndex(token),
+                currentIndex,
                 (cumulativeinterest / 10 ** 18),
                 assets,
-                Datahub.viewUsersEarningRateIndex(user, token)
+                usersEarningRateIndex
             );
 
         Datahub.alterUsersEarningRateIndex(user, token);
 
         Datahub.addAssets(user, token, (interestCharge / 10 ** 18));
         Datahub.addAssets(
-            fetchDaoWallet(),
+            daoWallet
             token,
             (DaoInterestCharge / 10 ** 18)
         );
 
         Datahub.addAssets(
-            fetchOrderBookProvider(),
+            orderBookProvider
             token,
             (OrderBookProviderCharge / 10 ** 18)
         );
@@ -506,18 +509,20 @@ contract EVO_EXCHANGE is Ownable2Step {
         address token
     ) public view returns (uint256) {
         (uint256 assets, , , , ) = Datahub.ReadUserData(user, token);
+        uint256 userEarningRateIndex = Datahub.viewUsersEarningRateIndex(user, token);
+        uint256 currentrateIndex = interestContract.fetchCurrentRateIndex(token);
         uint256 cumulativeinterest = interestContract
             .calculateAverageCumulativeDepositInterest(
-                Datahub.viewUsersEarningRateIndex(user, token),
-                interestContract.fetchCurrentRateIndex(token),
+                userEarningRateIndex,
+                currentrateIndex,
                 token
             );
 
         (uint256 interestCharge, , ) = EVO_LIBRARY.calculateCompoundedAssets(
-            interestContract.fetchCurrentRateIndex(token),
+            userEarningRateIndex
             (cumulativeinterest / 10 ** 18),
             assets,
-            Datahub.viewUsersEarningRateIndex(user, token)
+            userEarningRateIndex
         );
         return interestCharge;
     }
@@ -554,7 +559,8 @@ contract EVO_EXCHANGE is Ownable2Step {
                 total_interest_adjusted_liabilities
             );
 
-            Datahub.setTotalBorrowedAmount(
+            Datahub.setAssetInfo(
+                1, // 1 -> totalBorrowedAmount
                 token,
                 total_interest_adjusted_liabilities,
                 true
@@ -575,11 +581,7 @@ contract EVO_EXCHANGE is Ownable2Step {
 
             uint256 total_interest_adjusted_liabilities = liabilitiesAccrued - interestCharge;
 
-            Datahub.setTotalBorrowedAmount(
-                token,
-                total_interest_adjusted_liabilities,
-                false
-            );
+            Datahub.setAssetInfo(1, token, (liabilitiesAccrued - interestCharge), false); // 1 -> totalBorrowedAmount
 
             Datahub.alterUsersInterestRateIndex(user, token);
         }
