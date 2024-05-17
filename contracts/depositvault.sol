@@ -229,7 +229,7 @@ contract DepositVault is Ownable2Step {
 
                 Datahub.removeLiabilities(msg.sender, token, liabilities); // remove all liabilities
 
-                Datahub.setTotalBorrowedAmount(token, liabilities, false);
+                Datahub.setAssetInfo(1, token, liabilities, false); // 1 -> totalBorrowedAmount
 
                 Datahub.changeMarginStatus(msg.sender);
                 interestContract.chargeMassinterest(token);
@@ -363,7 +363,7 @@ This piece of code is having problems its supposed to be basically a piece of co
             uint256 OrderBookProviderCharge,
             uint256 DaoInterestCharge
         ) = EVO_LIBRARY.calculateCompoundedAssets(
-                currentReateIndex,
+                currentRateIndex,
                 averageCumulativeDepositInterest,
                 assets,
                 usersEarningRateIndex

@@ -487,13 +487,13 @@ contract EVO_EXCHANGE is Ownable2Step {
 
         Datahub.addAssets(user, token, (interestCharge / 10 ** 18));
         Datahub.addAssets(
-            daoWallet
+            daoWallet,
             token,
             (DaoInterestCharge / 10 ** 18)
         );
 
         Datahub.addAssets(
-            orderBookProvider
+            orderBookProvider,
             token,
             (OrderBookProviderCharge / 10 ** 18)
         );
@@ -519,7 +519,7 @@ contract EVO_EXCHANGE is Ownable2Step {
             );
 
         (uint256 interestCharge, , ) = EVO_LIBRARY.calculateCompoundedAssets(
-            userEarningRateIndex
+            userEarningRateIndex,
             (cumulativeinterest / 10 ** 18),
             assets,
             userEarningRateIndex
