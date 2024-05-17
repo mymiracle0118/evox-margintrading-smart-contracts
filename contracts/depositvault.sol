@@ -213,9 +213,9 @@ contract DepositVault is Ownable2Step {
 
                 modifyIMROnDeposit(msg.sender, token, amount);
 
-                liabilities -= amount;
+                Datahub.removeLiabilities(msg.sender, token , amount);
 
-                Datahub.setTotalBorrowedAmount(token, amount, false);
+                Datahub.setAssetInfo(1, token, amount, false); // 1 -> totalBorrowedAmount
 
                 interestContract.chargeMassinterest(token);
 
